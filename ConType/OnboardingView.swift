@@ -131,16 +131,19 @@ struct OnboardingView: View {
                 permissionStep
             case 2:
                 configStep
+            case 3:
+                infoStep
             default:
                 readyStep
             }
-            
+                         
             Spacer(minLength: 20)
             
             actionRow
         }
         .padding(24)
         .frame(width: 360, height: 400)
+        .animation(.easeInOut(duration: 0.5), value: viewModel.step)
     }
     
     private var welcomeStep: some View {
@@ -206,33 +209,51 @@ struct OnboardingView: View {
         }
     }
     
+    private var infoStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Spacer(minLength: 0)
+            
+            Text("You should know...")
+                .font(.largeTitle.weight(.semibold))
+                
+            Image("MenubarHint")
+                .resizable()
+                .interpolation(.high)
+                .antialiased(true)
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            Text("You can find the app living in your menu bar at the top of your screen. Just click on the icon you see above to open the menu.")
+            
+            Spacer(minLength: 0)
+        }
+    }
+    
     private var readyStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Spacer(minLength: 0)
             
-            Text("Press")
+            Text("Press any of the following")
                 .font(.largeTitle.weight(.semibold))
             
-            shortcutBadge(settings.keyboardHotkey.displayText)
-            
-            Text("or")
-                .foregroundStyle(.secondary)
+            shortcutBadge(settings.keyboardHotkey.displayText,
+                          to: "Toggle Overlay")
             
             shortcutBadge(
                 settings.controllerToggleBindings.shortcutText(
                     for: .keyboardToggle,
                     style: settings.controllerGlyphStyle
-                )
+                ),
+                to: "Toggle Keyboard Overlay"
             )
-            
-            Text("or")
-                .foregroundStyle(.secondary)
             
             shortcutBadge(
                 settings.controllerToggleBindings.shortcutText(
                     for: .mouseToggle,
                     style: settings.controllerGlyphStyle
-                )
+                ),
+                to: "Toggle Mouse Overlay"
             )
             
             Text("to get started")
@@ -254,10 +275,18 @@ struct OnboardingView: View {
                 backButton
             }
             
+#if DEBUG
+            if viewModel.step < 4 {
+                Button("Skip") {
+                    viewModel.advanceStep()
+                }
+            }
+#endif
+            
             Spacer()
             
             switch viewModel.step {
-            case 0, 2:
+            case 0, 2, 3:
                 Button("Next") {
                     viewModel.advanceStep()
                 }
@@ -286,23 +315,28 @@ struct OnboardingView: View {
             viewModel.goBack()
         }
         .buttonStyle(.bordered)
-        .tint(.secondary)
     }
     
-    private func shortcutBadge(_ text: String) -> some View {
-        Text(text)
-            .font(.system(.body, design: .monospaced).weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.primary.opacity(0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
-            )
+    private func shortcutBadge(_ text: String, to action: String) -> some View {
+        VStack (alignment: .leading, spacing: 4) {
+            Text(action)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            
+            Text(text)
+                .font(.system(.body, design: .monospaced).weight(.semibold))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
+        )
     }
 }
 
