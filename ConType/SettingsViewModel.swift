@@ -128,32 +128,7 @@ final class SettingsViewModel: ObservableObject {
     
     func resetDefaults() {
         // Reset all settings except open on startup
-        settings.keyboardHotkey = defaultKeyboardShortcut
-        settings.controllerToggleBindings = .default
-        settings.controllerActionBindings = .default
-        settings.keyboardLayout = .QWERTY
-        settings.leftStickInputType = [.overlayMovement, .scrollWheel]
-        settings.rightStickInputType = [.mouseMovement]
-        settings.padInputType = [.overlayMovement]
-        
-        settings.enableMouseInKeyboard = true
-        settings.prioritizeMouseOverKeyboard = false
-        settings.shiftShortcutCyclesToCapsLock = true
-        settings.dismissWithGuideButton = true
-        settings.keyboardMovementStyle = .limited
-        settings.leftStickDeadzone = 0.4
-        settings.rightStickDeadzone = 0.4
-        settings.mouseSensitivity = 300
-        settings.mouseSmoothing = 0.4
-        settings.invertMouseX = false
-        settings.invertMouseY = false
-        settings.scrollSpeed = 600
-        settings.invertScrollX = false
-        settings.invertScrollY = false
-        
-        settings.inMouseMode = false
-        settings.windowSize = .small
-        settings.windowPosition = .zero
+        settings.restoreDefaults(onlyHotkeys: false)
         
         // Update local state to reflect changes
         keyboardMovementStyle = settings.keyboardMovementStyle

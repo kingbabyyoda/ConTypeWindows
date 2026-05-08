@@ -502,7 +502,7 @@ final class AppSettings: ObservableObject {
     @Published var detectedController: DetectedController?
     
     private var cancellables = Set<AnyCancellable>()
-    
+        
     init() {
         load()
         
@@ -632,6 +632,42 @@ final class AppSettings: ObservableObject {
             debugPrint("[AppSettings] Failed to load settings: \(error)")
         }
     }
+    
+    func restoreDefaults(onlyHotkeys: Bool) {
+        if onlyHotkeys {
+            self.keyboardHotkey = KeyboardHotkeyManager.Shortcut(key: "k", modifiers: [.command])
+            self.controllerToggleBindings = .default
+            self.controllerActionBindings = .default
+            return
+        } else {
+            self.restartedFromPermissionScreen = false
+            self.keyboardHotkey = KeyboardHotkeyManager.Shortcut(key: "k", modifiers: [.command])
+            self.controllerToggleBindings = .default
+            self.controllerActionBindings = .default
+            self.enableMouseInKeyboard = true
+            self.prioritizeMouseOverKeyboard = false
+            self.keyboardLayout = .QWERTY
+            self.leftStickInputType = [.overlayMovement, .scrollWheel]
+            self.rightStickInputType = [.mouseMovement]
+            self.padInputType = [.overlayMovement]
+            self.shiftShortcutCyclesToCapsLock = true
+            self.dismissWithGuideButton = true
+            self.keyboardMovementStyle = .limited
+            self.leftStickDeadzone = 0.4
+            self.rightStickDeadzone = 0.4
+            self.mouseSensitivity = 300.0
+            self.mouseSmoothing = 0.4
+            self.invertMouseX = false
+            self.invertMouseY = false
+            self.scrollSpeed = 600.0
+            self.invertScrollX = false
+            self.invertScrollY = false
+            self.inMouseMode = false
+            self.windowSize = .small
+            self.windowPosition = .zero
+            return
+        }
+    }
 }
 
 // MARK: - Codable helpers
@@ -744,4 +780,33 @@ private struct AppSettingsCodable: Codable {
     var inMouseMode: Bool
     var windowSize: WindowSize
     var windowPosition: CodablePoint
+    
+    static let shared = AppSettingsCodable(
+        restartedFromPermissionScreen: false,
+        keyboardHotkey: .init(key: "k", modifiers: [.command]),
+        controllerToggleBindings: .default,
+        controllerActionBindings: .default,
+        enableMouseInKeyboard: true,
+        prioritizeMouseOverKeyboard: false,
+        keyboardLayoutName: KeyboardLayout.QWERTY.name,
+        leftStickInputType: [.overlayMovement, .scrollWheel],
+        rightStickInputType: [.mouseMovement],
+        padInputType: [.overlayMovement],
+        shiftShortcutCyclesToCapsLock: true,
+        dismissWithGuideButton: true,
+        openAppOnStartup: false,
+        keyboardMovementStyle: .limited,
+        leftStickDeadzone: 0.4,
+        rightStickDeadzone: 0.4,
+        mouseSensitivity: 300,
+        mouseSmoothing: 0.4,
+        invertMouseX: false,
+        invertMouseY: false,
+        scrollSpeed: 300,
+        invertScrollX: false,
+        invertScrollY: false,
+        inMouseMode: false,
+        windowSize: .small,
+        windowPosition: .init(.zero)
+    )
 }
