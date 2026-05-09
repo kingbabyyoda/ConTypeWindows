@@ -1079,8 +1079,8 @@ final class ControllerInputManager: NSObject {
             return
         }
         
-        if actionBindings.acceptType == button {
-            debugLog("Accept/Type triggered")
+        if actionBindings.accept == button {
+            debugLog("Accept triggered")
             onSelect?()
             return
         }

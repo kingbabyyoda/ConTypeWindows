@@ -16,12 +16,13 @@ struct KeyboardOverlayView: View {
     @ObservedObject var viewModel: KeyboardOverlayViewModel
     private var settings: AppSettings { viewModel.settings }
     let onKeyPressed: (VirtualKey, CGEventFlags) -> Void
-
+    
     var body: some View {
         GeometryReader { proxy in
             let metrics = layoutMetrics(in: proxy.size)
             
             VStack(spacing: metrics.rowSpacing) {
+                //MARK: - Keyboard
                 ForEach(Array(viewModel.rows.enumerated()), id: \.offset) { rowIndex, row in
                     let rowWidths = widths(for: row, rowIndex: rowIndex, metrics: metrics)
                     
@@ -61,8 +62,8 @@ struct KeyboardOverlayView: View {
                                 .frame(width: keyWidth, height: keyHeight)
                                 .scaleEffect(isModifierLatched ? 0.9 : 1)
                                 .background(
-                                        UnevenRoundedRectangle(cornerRadii: cornerRadii, style: .continuous)
-                                            .fill(fillColor)
+                                    UnevenRoundedRectangle(cornerRadii: cornerRadii, style: .continuous)
+                                        .fill(fillColor)
                                 )
                                 .overlay(
                                     UnevenRoundedRectangle(cornerRadii: cornerRadii, style: .continuous)
@@ -93,13 +94,47 @@ struct KeyboardOverlayView: View {
                         }
                     }
                 }
+                
+                //MARK: - Guide Bar
+                guideBar(metrics: metrics)
+                    .padding(.vertical, -metrics.rowSpacing)
             }
             .padding(metrics.innerPadding)
             .glassEffect(in: .rect(cornerRadius: metrics.windowCornerRadius, style: .continuous))
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
     }
-
+    
+    @ViewBuilder
+    private func guideBar(metrics: KeyboardLayoutMetrics) -> some View {
+        if settings.showGuideBar {
+            HStack(spacing: 12) {
+                let actionBindings = settings.controllerActionBindings
+                ForEach(ControllerActionBinding.allCases, id: \.self) { action in
+                    guideBarItem(for: action, actionBindings: actionBindings, metrics: metrics)
+                }
+            }
+            .frame(maxHeight: metrics.guideBarHeight)
+        }
+    }
+    
+    @ViewBuilder
+    private func guideBarItem(
+        for action: ControllerActionBinding,
+        actionBindings: ControllerActionBindings,
+        metrics: KeyboardLayoutMetrics
+    ) -> some View {
+        let hotkey = actionBindings.button(for: action)
+        if ControllerActionBinding.keyboardActions.contains(action) && hotkey != .none {
+            HStack(spacing: 2) {
+                Text(action.title)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                controllerShortcutGlyph(for: hotkey, metrics: metrics)
+            }
+        }
+    }
+    
     private func keyLabel(
         for key: VirtualKey,
         metrics: KeyboardLayoutMetrics,
@@ -110,7 +145,7 @@ struct KeyboardOverlayView: View {
             keyLegend(for: key, metrics: metrics, prefersShiftLegend: prefersShiftLegend, controllerShortcutButton: controllerShortcutButton != nil)
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+            
             if let controllerShortcutButton {
                 controllerShortcutGlyph(for: controllerShortcutButton, metrics: metrics)
                     .padding(.trailing, metrics.controllerGlyphInset)
@@ -119,7 +154,7 @@ struct KeyboardOverlayView: View {
         }
         .padding(.horizontal, max(4, metrics.baseUnitWidth * 0.08))
     }
-
+    
     @ViewBuilder
     private func keyLegend(for key: VirtualKey, metrics: KeyboardLayoutMetrics, prefersShiftLegend: Bool, controllerShortcutButton: Bool) -> some View {
         if let symbol = commandClusterSymbol(for: key) {
@@ -169,18 +204,21 @@ struct KeyboardOverlayView: View {
                 .lineLimit(1)
         }
     }
-
+    
     @ViewBuilder
-    private func controllerShortcutGlyph(for button: ControllerAssignableButton, metrics: KeyboardLayoutMetrics) -> some View {
+    private func controllerShortcutGlyph(for button: ControllerAssignableButton, metrics: KeyboardLayoutMetrics, forGuide: Bool = false) -> some View {
         let assetName = button.glyphAssetName(for: settings.controllerGlyphStyle)
-
+        let size = forGuide ? metrics.guideBarHeight : metrics.controllerGlyphSize
+        
         if NSImage(named: NSImage.Name(assetName)) != nil {
             Image(assetName)
                 .resizable()
                 .renderingMode(.original)
+                .interpolation(.high)
+                .antialiased(true)
                 .scaledToFit()
                 .colorMultiply(Color.primary)
-                .frame(width: metrics.controllerGlyphSize, height: metrics.controllerGlyphSize)
+                .frame(width: size, height: size)
                 .accessibilityLabel(Text(button.displayTitle(for: settings.controllerGlyphStyle)))
         } else {
             Text(button.fallbackGlyphText)
@@ -195,7 +233,7 @@ struct KeyboardOverlayView: View {
                 .accessibilityLabel(Text(button.displayTitle(for: settings.controllerGlyphStyle)))
         }
     }
-
+    
     private func controllerShortcutButton(for key: VirtualKey) -> ControllerAssignableButton? {
         switch key.role {
         case .toggleModifier(let modifier):
@@ -210,7 +248,7 @@ struct KeyboardOverlayView: View {
         case .standard:
             break
         }
-
+        
         switch key.keyCode {
         case 51:
             return settings.controllerActionBindings.backspace
@@ -222,7 +260,7 @@ struct KeyboardOverlayView: View {
             return nil
         }
     }
-
+    
     private func widths(for row: [VirtualKey], rowIndex: Int, metrics: KeyboardLayoutMetrics) -> [UUID: CGFloat] {
         guard !row.isEmpty else { return [:] }
         
@@ -256,12 +294,12 @@ struct KeyboardOverlayView: View {
         
         return resolved
     }
-
+    
     private func minimumFittingWidth(for key: VirtualKey, metrics: KeyboardLayoutMetrics) -> CGFloat {
         let horizontalPadding = max(4, metrics.baseUnitWidth * 0.08)
         let baseFont = NSFont.systemFont(ofSize: metrics.activeLegendFontSize, weight: .medium)
         let baseTextWidth = textWidth(key.baseLabel, font: baseFont)
-
+        
         var needed = baseTextWidth + horizontalPadding
         
         if let shiftedLabel = key.shiftedLabel {
@@ -282,16 +320,16 @@ struct KeyboardOverlayView: View {
         
         return ceil(needed)
     }
-
+    
     private func textWidth(_ text: String, font: NSFont) -> CGFloat {
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         return (text as NSString).size(withAttributes: attributes).width
     }
-
+    
     private var keyAnimation: Animation {
         reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.24, dampingFraction: 0.82)
     }
-
+    
     private func isCommandClusterKey(_ key: VirtualKey) -> Bool {
         guard case .toggleModifier(let modifier) = key.role else { return false }
         switch modifier {
@@ -301,7 +339,7 @@ struct KeyboardOverlayView: View {
             return false
         }
     }
-
+    
     private func commandClusterSymbol(for key: VirtualKey) -> String? {
         guard case .toggleModifier(let modifier) = key.role else { return nil }
         switch modifier {
@@ -315,7 +353,7 @@ struct KeyboardOverlayView: View {
             return nil
         }
     }
-
+    
     private func cornerRadii(forRow rowIndex: Int, column: Int, rowCount: Int, columnCount: Int, metrics: KeyboardLayoutMetrics) -> RectangleCornerRadii {
         let base = metrics.keyCornerRadius
         let outer = metrics.outerKeyCornerRadius
@@ -325,7 +363,7 @@ struct KeyboardOverlayView: View {
             bottomTrailing: base,
             topTrailing: base
         )
-
+        
         if rowIndex == 0 && column == 0 {
             radii.topLeading = outer
         }
@@ -338,29 +376,32 @@ struct KeyboardOverlayView: View {
         if rowIndex == rowCount - 1 && column == columnCount - 1 {
             radii.bottomTrailing = outer
         }
-
+        
         return radii
     }
-
+    
     private func layoutMetrics(in size: CGSize) -> KeyboardLayoutMetrics {
         let side = min(size.width, size.height)
         let innerPadding = max(10, min(20, side * 0.03))
         let rowSpacing = max(8, min(18, size.height * 0.03))
         let columnSpacing = max(6, min(14, size.width * 0.008))
-
+        
+        let guideBar = min(size.width, size.height) * 0.1
+        
         let contentWidth = max(1, size.width - (innerPadding * 2))
-        let contentHeight = max(1, size.height - (innerPadding * 2))
-
+        let contentHeight = max(1, size.height - (innerPadding * 2) - guideBar)
+        
         let referenceRow = viewModel.rows.first ?? []
         let referenceUnits = max(1, referenceRow.reduce(CGFloat(0)) { $0 + $1.widthUnits })
         let referenceSpacing = CGFloat(max(0, referenceRow.count - 1)) * columnSpacing
         let widthDrivenUnit = max(10, (contentWidth - referenceSpacing) / referenceUnits)
         let heightDrivenKey = (contentHeight - (CGFloat(viewModel.rows.count - 1) * rowSpacing)) / CGFloat(max(viewModel.rows.count, 1))
-
+        
         let keyHeight = max(26, min(90, heightDrivenKey))
-
+        
         return KeyboardLayoutMetrics(
             baseUnitWidth: widthDrivenUnit,
+            guideBarHeight: guideBar,
             keyHeight: keyHeight,
             columnSpacing: columnSpacing,
             rowSpacing: rowSpacing,
@@ -381,9 +422,10 @@ struct KeyboardOverlayView: View {
             windowCornerRadius: max(18, min(30, side * 0.06))
         )
     }
-
+    
     private struct KeyboardLayoutMetrics {
         let baseUnitWidth: CGFloat
+        let guideBarHeight: CGFloat
         let keyHeight: CGFloat
         let columnSpacing: CGFloat
         let rowSpacing: CGFloat
@@ -404,9 +446,9 @@ struct KeyboardOverlayView: View {
         let windowCornerRadius: CGFloat
     }
 }
-
+    
 #Preview {
     KeyboardOverlayView(viewModel: KeyboardOverlayViewModel(settings: AppSettings())) { key, _ in
     }
-    .frame(width: 840, height: 280)
+    .frame(width: 800, height: 320)
 }

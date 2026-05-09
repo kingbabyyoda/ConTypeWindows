@@ -297,7 +297,7 @@ struct ControllerCaptureState: Equatable {
 }
 
 enum ControllerActionBinding: String, CaseIterable, Identifiable {
-    case acceptType
+    case accept
     case backspace
     case space
     case enter
@@ -312,7 +312,7 @@ enum ControllerActionBinding: String, CaseIterable, Identifiable {
     
     static let overlayActions: [ControllerActionBinding] = [.shrinkWindow, .enlargeWindow]
     
-    static let keyboardActions: [ControllerActionBinding] = [.acceptType, .backspace, .space, .enter, .shift, .capsLock, .moveCaretLeft, .moveCaretRight]
+    static let keyboardActions: [ControllerActionBinding] = [.accept, .backspace, .space, .enter, .shift, .capsLock, .moveCaretLeft, .moveCaretRight]
     
     static let mouseActions: [ControllerActionBinding] = [.mouseLeftClick, .mouseRightClick]
     
@@ -320,7 +320,7 @@ enum ControllerActionBinding: String, CaseIterable, Identifiable {
     
     var title: String {
         switch self {
-        case .acceptType: return "Accept/Type"
+        case .accept: return "Accept"
         case .backspace: return "Backspace"
         case .space: return "Space"
         case .enter: return "Enter"
@@ -337,7 +337,7 @@ enum ControllerActionBinding: String, CaseIterable, Identifiable {
 }
 
 struct ControllerActionBindings: Equatable {
-    var acceptType: ControllerAssignableButton
+    var accept: ControllerAssignableButton
     var backspace: ControllerAssignableButton
     var space: ControllerAssignableButton
     var enter: ControllerAssignableButton
@@ -352,7 +352,7 @@ struct ControllerActionBindings: Equatable {
     
     static let `default` = ControllerActionBindings(
         // Keyboard Controls
-        acceptType: .south,
+        accept: .south,
         backspace: .east,
         space: .north,
         enter: .west,
@@ -372,8 +372,8 @@ struct ControllerActionBindings: Equatable {
     
     func button(for action: ControllerActionBinding) -> ControllerAssignableButton {
         switch action {
-        case .acceptType:
-            return acceptType
+        case .accept:
+            return accept
         case .backspace:
             return backspace
         case .space:
@@ -401,8 +401,8 @@ struct ControllerActionBindings: Equatable {
     
     mutating func setButton(_ button: ControllerAssignableButton, for action: ControllerActionBinding) {
         switch action {
-        case .acceptType:
-            acceptType = button
+        case .accept:
+            accept = button
         case .backspace:
             backspace = button
         case .space:
