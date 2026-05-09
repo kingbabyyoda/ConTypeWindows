@@ -99,6 +99,7 @@ struct KeyboardOverlayView: View {
                 guideBar(metrics: metrics)
                     .padding(.vertical, -metrics.rowSpacing)
             }
+            .animation(.easeInOut(duration: 0.1), value: settings.showGuideBar)
             .padding(metrics.innerPadding)
             .glassEffect(in: .rect(cornerRadius: metrics.windowCornerRadius, style: .continuous))
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -108,12 +109,13 @@ struct KeyboardOverlayView: View {
     @ViewBuilder
     private func guideBar(metrics: KeyboardLayoutMetrics) -> some View {
         if settings.showGuideBar {
+            let actionBindings = settings.controllerActionBindings
             HStack(spacing: 12) {
-                let actionBindings = settings.controllerActionBindings
                 ForEach(ControllerActionBinding.allCases, id: \.self) { action in
                     guideBarItem(for: action, actionBindings: actionBindings, metrics: metrics)
                 }
             }
+            .animation(.easeInOut(duration: 0.1), value: actionBindings)
             .frame(maxHeight: metrics.guideBarHeight)
         }
     }
