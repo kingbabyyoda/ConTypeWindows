@@ -130,9 +130,10 @@ struct KeyboardOverlayView: View {
         if ControllerActionBinding.keyboardActions.contains(action) && hotkey != .none {
             HStack(spacing: 2) {
                 Text(action.title)
-                    .font(.footnote)
+                    .font(.system(size: metrics.guideBarFontSize, weight: .regular, design: .rounded))
+                    .lineSpacing(0.1)
+                    .minimumScaleFactor(0.8)
                     .foregroundStyle(.secondary)
-                    .minimumScaleFactor(0.15)
                 controllerShortcutGlyph(for: hotkey, metrics: metrics)
             }
         }
@@ -391,6 +392,8 @@ struct KeyboardOverlayView: View {
         
         let guideBar = settings.showGuideBar ? max(12, min(44, size.height * 0.1)) : 0
         let guideBarSpacing = settings.showGuideBar ? rowSpacing : 0
+        let guideBarFontMult = size.height < 300 ? 0.26 : 0.4
+        let guideBarFontSize = max(4, min(16, guideBar * guideBarFontMult))
         
         let contentWidth = max(1, size.width - (innerPadding * 2))
         let contentHeight = max(1, size.height - (innerPadding * 2) - guideBar + guideBarSpacing)
@@ -411,6 +414,7 @@ struct KeyboardOverlayView: View {
             rowSpacing: rowSpacing,
             innerPadding: innerPadding,
             contentWidth: contentWidth,
+            guideBarFontSize: guideBarFontSize,
             shortcutFontSize: max(6, min(22, keyHeight * 0.28)),
             activeLegendFontSize: max(9, min(22, keyHeight * 0.32)),
             inactiveLegendFontSize: max(6, min(16, keyHeight * 0.23)),
@@ -436,6 +440,7 @@ struct KeyboardOverlayView: View {
         let rowSpacing: CGFloat
         let innerPadding: CGFloat
         let contentWidth: CGFloat
+        let guideBarFontSize: CGFloat
         let shortcutFontSize: CGFloat
         let activeLegendFontSize: CGFloat
         let inactiveLegendFontSize: CGFloat
