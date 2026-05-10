@@ -100,6 +100,7 @@ struct KeyboardOverlayView: View {
                     .padding(.vertical, -metrics.rowSpacing)
             }
             .animation(.easeInOut(duration: 0.1), value: settings.showGuideBar)
+            .animation(.easeInOut(duration: 0.2), value: settings.keyboardLayout)
             .padding(metrics.innerPadding)
             .glassEffect(in: .rect(cornerRadius: metrics.windowCornerRadius, style: .continuous))
             .frame(width: proxy.size.width, height: proxy.size.height)
