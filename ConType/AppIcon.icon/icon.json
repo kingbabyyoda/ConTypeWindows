@@ -1,16 +1,57 @@
 {
   "fill" : {
-    "automatic-gradient" : "gray:0.15411,1.00000"
+    "linear-gradient" : [
+      "display-p3:0.56471,0.45490,0.80392,1.00000",
+      "srgb:0.30980,0.18431,0.31373,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
   },
   "groups" : [
     {
-      "blur-material" : null,
+      "blur-material-specializations" : [
+        {
+          "value" : null
+        },
+        {
+          "appearance" : "dark",
+          "value" : null
+        }
+      ],
       "layers" : [
         {
-          "image-name" : "Subtract.svg",
-          "name" : "Subtract",
+          "fill-specializations" : [
+            {
+              "value" : {
+                "solid" : "gray:1.00000,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : {
+                "solid" : "extended-gray:1.00000,1.00000"
+              }
+            }
+          ],
+          "glass" : true,
+          "image-name" : "Icon.svg",
+          "name" : "Icon",
+          "opacity-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : 1
+            }
+          ],
           "position" : {
-            "scale" : 3,
+            "scale" : 3.8,
             "translation-in-points" : [
               0,
               0
@@ -18,16 +59,45 @@
           }
         }
       ],
-      "lighting" : "individual",
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
-      },
-      "specular" : false,
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
+      "shadow-specializations" : [
+        {
+          "value" : {
+            "kind" : "neutral",
+            "opacity" : 0.5
+          }
+        },
+        {
+          "appearance" : "dark",
+          "value" : {
+            "kind" : "neutral",
+            "opacity" : 0.5
+          }
+        }
+      ],
+      "specular-specializations" : [
+        {
+          "value" : true
+        },
+        {
+          "appearance" : "dark",
+          "value" : false
+        }
+      ],
+      "translucency-specializations" : [
+        {
+          "value" : {
+            "enabled" : true,
+            "value" : 0.1
+          }
+        },
+        {
+          "appearance" : "dark",
+          "value" : {
+            "enabled" : true,
+            "value" : 0.1
+          }
+        }
+      ]
     }
   ],
   "supported-platforms" : {
