@@ -175,8 +175,9 @@ final class OverlayWindowController {
         window.isReleasedWhenClosed = false
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
-        window.contentAspectRatio = NSSize(width: 5, height: 2)
-        window.contentMinSize = NSSize(width: 800, height: 300)
+        window.aspectRatio = NSSize(width: 8, height: 3)
+        window.minSize = NSSize(width: 800, height: 300)
+        window.maxSize = NSSize(width: 1440, height: 540)
         
         self.keyboardWindow = window
         
@@ -286,7 +287,8 @@ final class OverlayWindowController {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.contentAspectRatio = NSSize(width: 1, height: 1)
-        window.contentMinSize = NSSize(width: 64, height: 64)
+        window.minSize = NSSize(width: 64, height: 64)
+        window.maxSize = NSSize(width: 64, height: 64)
         
         self.mouseWindow = window
         
@@ -309,14 +311,16 @@ final class OverlayWindowController {
         settings.customWindowDimensions = window.frame.size
         settings.windowPosition = window.frame.origin
 
-        let snappedPreset = WindowSize.preset(for: window.frame.size)
-        let snappedDimensions = snappedPreset.windowDimensions()
-
-        if window.frame.size.width == snappedDimensions.width
-            && window.frame.size.height == snappedDimensions.height {
-            settings.windowSize = snappedPreset
-        } else {
-            settings.windowSize = .custom
-        }
+//        let snappedPreset = WindowSize.preset(for: window.frame.size)
+//        let snappedDimensions = snappedPreset.windowDimensions()
+//        
+//        if window.frame.size.width == snappedDimensions.width
+//            && window.frame.size.height == snappedDimensions.height {
+//            settings.windowSize = snappedPreset
+//        } else {
+//            settings.windowSize = .custom
+//        }
+        
+        settings.windowSize = .custom
     }
 }
