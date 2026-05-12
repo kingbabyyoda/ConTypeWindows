@@ -94,7 +94,10 @@ final class AppCoordinator: ObservableObject {
             Task { @MainActor in
                 guard let self, self.overlayController.isKeyboardVisible else { return }
                 NSApp.deactivate()
-                self.overlayController.moveSelection(direction, trigger: trigger)
+                let didMove = self.overlayController.moveSelection(direction, trigger: trigger)
+                if didMove {
+                    self.controllerInputManager.playMoveRumbleIfSupported()
+                }
             }
         }
         
@@ -272,6 +275,7 @@ final class AppCoordinator: ObservableObject {
         controllerInputManager.invertScrollY = settings.invertScrollY
         controllerInputManager.enableMouseInKeyboard = settings.enableMouseInKeyboard
         controllerInputManager.prioritizeMouseOverKeyboard = settings.prioritizeMouseOverKeyboard
+        controllerInputManager.enableHaptics = settings.enableHaptics
         refreshControllerOverlayVisibility()
         
         settings.$keyboardHotkey
@@ -385,6 +389,12 @@ final class AppCoordinator: ObservableObject {
         settings.$prioritizeMouseOverKeyboard
             .sink { [weak self] value in
                 self?.controllerInputManager.prioritizeMouseOverKeyboard = value
+            }
+            .store(in: &cancellables)
+
+        settings.$enableHaptics
+            .sink { [weak self] value in
+                self?.controllerInputManager.enableHaptics = value
             }
             .store(in: &cancellables)
         

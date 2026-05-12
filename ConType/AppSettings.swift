@@ -552,6 +552,7 @@ final class AppSettings: ObservableObject {
     @Published var scrollSpeed: CGFloat = 300.0
     @Published var invertScrollX: Bool = false
     @Published var invertScrollY: Bool = false
+    @Published var enableHaptics: Bool = true
     
     // Overlay
     @Published var inMouseMode: Bool = false
@@ -594,6 +595,7 @@ final class AppSettings: ObservableObject {
             $scrollSpeed.map { _ in () }.eraseToAnyPublisher(),
             $invertScrollX.map { _ in () }.eraseToAnyPublisher(),
             $invertScrollY.map { _ in () }.eraseToAnyPublisher(),
+            $enableHaptics.map { _ in () }.eraseToAnyPublisher(),
             $inMouseMode.map { _ in () }.eraseToAnyPublisher(),
             $showGuideBar.map { _ in () }.eraseToAnyPublisher(),
             $windowSize.map { _ in () }.eraseToAnyPublisher(),
@@ -644,6 +646,7 @@ final class AppSettings: ObservableObject {
             scrollSpeed: scrollSpeed,
             invertScrollX: invertScrollX,
             invertScrollY: invertScrollY,
+            enableHaptics: enableHaptics,
             inMouseMode: inMouseMode,
             showGuideBar: showGuideBar,
             windowSize: windowSize,
@@ -693,6 +696,7 @@ final class AppSettings: ObservableObject {
             self.scrollSpeed = codable.scrollSpeed
             self.invertScrollX = codable.invertScrollX
             self.invertScrollY = codable.invertScrollY
+            self.enableHaptics = codable.enableHaptics
             self.inMouseMode = codable.inMouseMode
             self.showGuideBar = codable.showGuideBar
             self.windowSize = codable.windowSize
@@ -734,6 +738,7 @@ final class AppSettings: ObservableObject {
             self.scrollSpeed = 600.0
             self.invertScrollX = false
             self.invertScrollY = false
+            self.enableHaptics = true
             self.inMouseMode = false
             self.showGuideBar = true
             self.windowSize = .small
@@ -866,6 +871,7 @@ private struct AppSettingsCodable: Codable {
     var scrollSpeed: CGFloat
     var invertScrollX: Bool
     var invertScrollY: Bool
+    var enableHaptics: Bool
     var inMouseMode: Bool
     var showGuideBar: Bool
     var windowSize: WindowSize
