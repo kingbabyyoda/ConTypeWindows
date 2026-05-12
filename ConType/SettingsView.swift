@@ -249,42 +249,28 @@ struct SettingsView: View {
                 
                 Tab("Keyboard", systemImage: "keyboard") {
                     Form {
-                        Section("Keyboard Layout") {
-                            HStack {
-                                Text("Keyboard Size")
-                                Spacer()
-                                Menu {
-                                    ForEach(WindowSize.selectableCases) { size in
-                                        Button(size.name) {
-                                            viewModel.settings.windowSize = size
-                                        }
-                                    }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Text(viewModel.settings.windowSize.name)
-                                        Image(systemName: "chevron.up.chevron.down")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .frame(width: 160, alignment: .leading)
+                        Picker(
+                            "Keyboard Layout",
+                            selection: Binding(
+                                get: { viewModel.settings.keyboardLayout },
+                                set: {
+                                    viewModel.settings.keyboardLayout = $0
                                 }
-                            }
-                            
-                            if viewModel.settings.windowSize == .custom {
-                                Text("Custom size was set by manually resizing the keyboard window.")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                            
-                            KeyboardOverlayView(
-                                viewModel: KeyboardOverlayViewModel(
-                                    settings: settings
-                                ),
-                                onKeyPressed: { _, _ in }
                             )
-                            .frame(width: 500, height: 210)
-                            .disabled(true)
+                        ) {
+                            ForEach(KeyboardLayout.all) { layout in
+                                Text(layout.name).tag(layout)
+                            }
                         }
+                        
+                        KeyboardOverlayView(
+                            viewModel: KeyboardOverlayViewModel(
+                                settings: settings
+                            ),
+                            onKeyPressed: { _, _ in }
+                        )
+                        .frame(width: 500, height: 210)
+                        .disabled(true)
                         
                         Section("Controller Configuration") {
                             HStack {
