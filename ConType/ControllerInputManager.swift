@@ -144,6 +144,7 @@ final class ControllerInputManager: NSObject {
 
     private var controllerHapticsEngine: CHHapticEngine?
     private var controllerHapticsControllerID: ObjectIdentifier?
+    private var controllerHapticsLocality: GCHapticsLocality?
     
     private var isGuideHeld = false {
         didSet { publishCaptureState() }
@@ -273,36 +274,42 @@ final class ControllerInputManager: NSObject {
         stopMoveRepeat(clearDirection: true, for: .arrowKeys)
         NotificationCenter.default.removeObserver(self)
     }
-
+    
+    //MARK: - Haptics Handling
     func playMoveRumbleIfSupported() {
         guard enableHaptics else {
             debugLog("Haptics disabled; skipping move rumble")
             return
         }
+        
         guard let engine = resolvedControllerHapticsEngine() else {
             debugLog("No controller haptics engine available; skipping move rumble")
             return
         }
-        debugLog("Attempting controller move rumble")
 
-        // Engines can auto-stop while idle; ensure it is running right before playback.
+        // Engines can auto-stop while idle; ensure it is running before playback
         do {
             try engine.start()
-            debugLog("Controller haptics engine started/reused")
         } catch {
-            debugLog("Controller haptics engine start failed: \(error)")
+            debugLog("Failed to start controller haptics engine: \(error)")
             invalidateControllerHapticsEngine()
-            guard let recreatedEngine = resolvedControllerHapticsEngine() else { return }
+            
+            // Attempt one retry with a fresh engine
+            guard let recreatedEngine = resolvedControllerHapticsEngine() else {
+                debugLog("Unable to recover haptics engine after failure")
+                return
+            }
+            
             do {
                 try recreatedEngine.start()
-                debugLog("Controller haptics engine recreated and started")
                 try playMoveRumble(with: recreatedEngine)
             } catch {
-                debugLog("Controller move rumble failed after engine recreate: \(error)")
+                debugLog("Controller haptics recovery failed: \(error)")
             }
             return
         }
 
+        // Play the rumble pattern
         do {
             try playMoveRumble(with: engine)
         } catch {
@@ -310,6 +317,8 @@ final class ControllerInputManager: NSObject {
         }
     }
 
+    /// Plays a transient haptic pattern suitable for movement/navigation feedback.
+    /// Uses intensity of 0.35 and sharpness of 0.45 for a subtle, responsive feel.
     private func playMoveRumble(with engine: CHHapticEngine) throws {
         let events = [
             CHHapticEvent(
@@ -325,78 +334,98 @@ final class ControllerInputManager: NSObject {
         let pattern = try CHHapticPattern(events: events, parameters: [])
         let player = try engine.makePlayer(with: pattern)
         try player.start(atTime: CHHapticTimeImmediate)
-        debugLog("Controller move rumble playback started")
     }
 
     private func resolvedControllerHapticsEngine() -> CHHapticEngine? {
         let hapticsControllers = GCController.controllers().filter { $0.haptics != nil }
-        debugLog("Haptics-capable controllers detected: \(hapticsControllers.count)")
-        guard let controller = preferredConnectedController(from: hapticsControllers),
-              let haptics = controller.haptics else {
-            debugLog("No connected controller exposes haptics")
+        
+        guard let controller = preferredConnectedController(from: hapticsControllers) else {
+            invalidateControllerHapticsEngine()
+            return nil
+        }
+        
+        guard let haptics = controller.haptics else {
             invalidateControllerHapticsEngine()
             return nil
         }
 
-        let controllerName = controller.vendorName ?? productCategory(for: controller) ?? "Unknown Controller"
-        debugLog("Selected controller for haptics: \(controllerName)")
-
+        // Check if we can reuse existing engine
         let controllerID = ObjectIdentifier(controller)
         if let existingEngine = controllerHapticsEngine,
            controllerHapticsControllerID == controllerID {
-            debugLog("Reusing existing controller haptics engine")
             return existingEngine
         }
 
+        // Clean up any existing engine before creating a new one
         stopControllerHapticsEngine()
 
-        let locality: GCHapticsLocality
-        debugLog("Supported haptics localities: \(haptics.supportedLocalities.map { $0.rawValue }.sorted())")
-        if haptics.supportedLocalities.contains(.default) {
-            locality = .default
-        } else if let firstSupported = haptics.supportedLocalities.first {
-            locality = firstSupported
-        } else {
-            debugLog("Controller has haptics object but no supported localities")
-            return nil
-        }
-        debugLog("Using controller haptics locality: \(locality.rawValue)")
-
-        guard let engine = haptics.createEngine(withLocality: locality) else {
-            debugLog("Failed to create controller haptics engine")
+        // Validate supported localities (GCDeviceHaptics.supportedLocalities must not be empty)
+        guard !haptics.supportedLocalities.isEmpty else {
             return nil
         }
 
-        engine.resetHandler = { [weak self] in
-            self?.debugLog("Controller haptics engine reset")
-            do {
-                try self?.controllerHapticsEngine?.start()
-                self?.debugLog("Controller haptics engine restarted after reset")
-            } catch {
-                self?.debugLog("Controller haptics engine restart failed after reset: \(error)")
-                self?.invalidateControllerHapticsEngine()
-            }
-        }
-        engine.stoppedHandler = { [weak self] reason in
-            self?.debugLog("Controller haptics engine stopped: \(reason.rawValue) [\(Self.describeStoppedReason(reason))]")
+        // Select the optimal locality for haptics
+        let selectedLocality = selectOptimalHapticsLocality(from: haptics.supportedLocalities)
+
+        // Create the haptic engine with the selected locality
+        guard let engine = haptics.createEngine(withLocality: selectedLocality) else {
+            return nil
         }
 
+        // Configure engine handlers for lifecycle management
+        configureHapticsEngineHandlers(engine)
+
+        // Cache the engine and associated metadata
         controllerHapticsEngine = engine
         controllerHapticsControllerID = controllerID
-        debugLog("Created and cached controller haptics engine")
+        controllerHapticsLocality = selectedLocality
         return engine
+    }
+    
+    // MARK: - Haptics Engine Configuration
+    
+    /// Selects the optimal haptics locality from the supported options.
+    /// Prefers `.default` if available, otherwise uses the first supported locality.
+    private func selectOptimalHapticsLocality(from supportedLocalities: Set<GCHapticsLocality>) -> GCHapticsLocality {
+        if supportedLocalities.contains(.default) {
+            return .default
+        }
+        return supportedLocalities.first ?? .default
+    }
+    
+    /// Configures reset and stopped handlers for the haptics engine to manage its lifecycle.
+    private func configureHapticsEngineHandlers(_ engine: CHHapticEngine) {
+        engine.resetHandler = { [weak self] in
+            self?.debugLog("Controller haptics engine received reset signal")
+            self?.handleHapticsEngineReset(engine)
+        }
+        
+        engine.stoppedHandler = { [weak self] reason in
+            let reasonDescription = Self.describeStoppedReason(reason)
+            self?.debugLog("Controller haptics engine stopped: \(reason.rawValue) [\(reasonDescription)]")
+        }
+    }
+    
+    /// Handles engine reset by attempting to restart it.
+    private func handleHapticsEngineReset(_ engine: CHHapticEngine) {
+        do {
+            try engine.start()
+        } catch {
+            debugLog("Failed to restart controller haptics engine after reset: \(error)")
+            invalidateControllerHapticsEngine()
+        }
     }
 
     private func stopControllerHapticsEngine() {
         if controllerHapticsEngine != nil {
-            debugLog("Stopping cached controller haptics engine")
+            debugLog("Stopping and clearing cached controller haptics engine")
         }
         controllerHapticsEngine?.stop(completionHandler: nil)
         controllerHapticsEngine = nil
+        controllerHapticsLocality = nil
     }
 
     private func invalidateControllerHapticsEngine() {
-        debugLog("Invalidating controller haptics engine cache")
         stopControllerHapticsEngine()
         controllerHapticsControllerID = nil
     }
