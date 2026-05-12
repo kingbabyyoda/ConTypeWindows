@@ -426,6 +426,17 @@ struct SettingsView: View {
                 
                 Tab("Input", systemImage: "gamecontroller") {
                     Form {
+                        Section("General") {
+                            Toggle(
+                                isOn: Binding(
+                                    get: { viewModel.settings.enableHaptics },
+                                    set: { viewModel.settings.enableHaptics = $0 }
+                                    ),
+                                label: {
+                                    Text("Enable Controller Haptics")
+                                })
+                        }
+                        
                         Section("Joystick Deadzone") {
                             viewModel.stickDeadzoneConfig
                         }
