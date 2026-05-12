@@ -322,12 +322,13 @@ final class ControllerInputManager: NSObject {
     private func playMoveRumble(with engine: CHHapticEngine) throws {
         let events = [
             CHHapticEvent(
-                eventType: .hapticTransient,
+                eventType: .hapticContinuous,
                 parameters: [
-                    CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.35),
-                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.45)
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.25),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.3)
                 ],
-                relativeTime: 0
+                relativeTime: 0,
+                duration: 0.1
             )
         ]
 
