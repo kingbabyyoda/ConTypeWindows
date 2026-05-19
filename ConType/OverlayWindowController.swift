@@ -49,7 +49,7 @@ final class OverlayWindowController {
             return mouseWindow.isVisible
         } else {
             let keyboardWindow = makeWindowIfNeeded()
-            resizeWindow(to: settings.windowSize)
+            resizeWindow(to: settings.keyboardWindowSize)
             SkyLightOperator.shared.delegateWindow(keyboardWindow)
             
             keyboardWindow.orderFrontRegardless()
@@ -97,7 +97,7 @@ final class OverlayWindowController {
     }
     
     func updateWindowSize() {
-        resizeWindow(to: settings.windowSize)
+        resizeWindow(to: settings.keyboardWindowSize)
     }
 
     func enlargeWindow() {
@@ -106,7 +106,7 @@ final class OverlayWindowController {
             show()
             return
         } else {
-            settings.windowSize = settings.windowSize.largerPreset(using: settings.customWindowDimensions)
+            settings.keyboardWindowSize = settings.keyboardWindowSize.largerPreset(using: settings.keyboardCustomDimensions)
             updateWindowSize()
         }
     }
@@ -115,15 +115,15 @@ final class OverlayWindowController {
         if settings.inMouseMode {
             return
         } else {
-            let nextSize = settings.windowSize.smallerPreset(using: settings.customWindowDimensions)
-            if settings.windowSize == .custom {
-                settings.windowSize = nextSize
+            let nextSize = settings.keyboardWindowSize.smallerPreset(using: settings.keyboardCustomDimensions)
+            if settings.keyboardWindowSize == .custom {
+                settings.keyboardWindowSize = nextSize
                 updateWindowSize()
-            } else if nextSize == .small && settings.windowSize == .small {
+            } else if nextSize == .small && settings.keyboardWindowSize == .small {
                 settings.inMouseMode = true
                 show()
             } else {
-                settings.windowSize = nextSize
+                settings.keyboardWindowSize = nextSize
                 updateWindowSize()
             }
         }
@@ -141,7 +141,7 @@ final class OverlayWindowController {
         }
             .frame(minWidth: 640, maxWidth: 1440, minHeight: 240, maxHeight: 540)
         
-        let windowDimensions = settings.windowSize.windowDimensions(customSize: settings.customWindowDimensions)
+        let windowDimensions = settings.keyboardWindowSize.windowDimensions(customSize: settings.keyboardCustomDimensions)
         
         let hostingController = NSHostingController(rootView: contentView)
         let baseMask: NSWindow.StyleMask = [
@@ -198,8 +198,8 @@ final class OverlayWindowController {
         let screen = NSScreen.main ?? keyboardWindow.screen ?? NSScreen.screens.first
         guard let frame = screen?.visibleFrame else { return }
 
-        let keyboardWindowDimensions = size.windowDimensions(customSize: settings.customWindowDimensions)
-        let keyboardWindowPosition = settings.windowPosition
+        let keyboardWindowDimensions = size.windowDimensions(customSize: settings.keyboardCustomDimensions)
+        let keyboardWindowPosition = settings.keyboardWindowPosition
         
         let targetSize = NSSize(
             width: min(1440, max(640, keyboardWindowDimensions.width)),
@@ -294,7 +294,7 @@ final class OverlayWindowController {
         guard let window = notification.object as? NSWindow,
             window === self.keyboardWindow
         else { return }
-        settings.windowPosition = window.frame.origin
+        settings.keyboardWindowPosition = window.frame.origin
     }
 
     @objc private func windowDidEndLiveResize(_ notification: Notification) {
@@ -303,18 +303,18 @@ final class OverlayWindowController {
             !isApplyingProgrammaticResize
         else { return }
 
-        settings.customWindowDimensions = window.frame.size
-        settings.windowPosition = window.frame.origin
-        settings.windowSize = .custom
+        settings.keyboardCustomDimensions = window.frame.size
+        settings.keyboardWindowPosition = window.frame.origin
+        settings.keyboardWindowSize = .custom
 
 //        let snappedPreset = WindowSize.preset(for: window.frame.size)
 //        let snappedDimensions = snappedPreset.windowDimensions()
 //        
 //        if window.frame.size.width == snappedDimensions.width
 //            && window.frame.size.height == snappedDimensions.height {
-//            settings.windowSize = snappedPreset
+//            settings.keyboardWindowSize = snappedPreset
 //        } else {
-//            settings.windowSize = .custom
+//            settings.keyboardWindowSize = .custom
 //        }
     }
 }

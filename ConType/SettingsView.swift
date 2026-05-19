@@ -110,19 +110,19 @@ struct SettingsView: View {
                                     Menu {
                                         ForEach(WindowSize.selectableCases) { size in
                                             Button(size.name) {
-                                                viewModel.settings.windowSize = size
+                                                viewModel.settings.keyboardWindowSize = size
                                                 viewModel.onUpdateWindowSize()
                                             }
                                         }
                                     } label: {
                                         HStack(spacing: 6) {
-                                            Text(viewModel.settings.windowSize.name)
+                                            Text(viewModel.settings.keyboardWindowSize.name)
                                         }
                                         .frame(width: 160, alignment: .leading)
                                     }
                                 }
                                 
-                                if viewModel.settings.windowSize == .custom {
+                                if viewModel.settings.keyboardWindowSize == .custom {
                                     Text("Custom size was set by manually resizing the keyboard window.")
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)

@@ -557,9 +557,9 @@ final class AppSettings: ObservableObject {
     // Overlay
     @Published var inMouseMode: Bool = false
     @Published var showGuideBar: Bool = true
-    @Published var windowSize: WindowSize = .small
-    @Published var customWindowDimensions: NSSize = WindowSize.medium.windowDimensions()
-    @Published var windowPosition: NSPoint = .zero
+    @Published var keyboardWindowSize: WindowSize = .small
+    @Published var keyboardCustomDimensions: NSSize = WindowSize.medium.windowDimensions()
+    @Published var keyboardWindowPosition: NSPoint = .zero
     
     // App state (Does not persist)
     @Published var controllerGlyphStyle: ControllerGlyphStyle = .generic
@@ -598,9 +598,9 @@ final class AppSettings: ObservableObject {
             $enableHaptics.map { _ in () }.eraseToAnyPublisher(),
             $inMouseMode.map { _ in () }.eraseToAnyPublisher(),
             $showGuideBar.map { _ in () }.eraseToAnyPublisher(),
-            $windowSize.map { _ in () }.eraseToAnyPublisher(),
-            $customWindowDimensions.map { _ in () }.eraseToAnyPublisher(),
-            $windowPosition.map { _ in () }.eraseToAnyPublisher()
+            $keyboardWindowSize.map { _ in () }.eraseToAnyPublisher(),
+            $keyboardCustomDimensions.map { _ in () }.eraseToAnyPublisher(),
+            $keyboardWindowPosition.map { _ in () }.eraseToAnyPublisher()
         ]
         
         Publishers.MergeMany(saveTriggers)
@@ -649,9 +649,9 @@ final class AppSettings: ObservableObject {
             enableHaptics: enableHaptics,
             inMouseMode: inMouseMode,
             showGuideBar: showGuideBar,
-            windowSize: windowSize,
-            customWindowDimensions: CodableSize(customWindowDimensions),
-            windowPosition: CodablePoint(windowPosition)
+            keyboardWindowSize: keyboardWindowSize,
+            keyboardCustomDimensions: CodableSize(keyboardCustomDimensions),
+            keyboardWindowPosition: CodablePoint(keyboardWindowPosition)
         )
         do {
             debugPrint("[AppSettings] Saving app settings to file...")
@@ -699,11 +699,11 @@ final class AppSettings: ObservableObject {
             self.enableHaptics = codable.enableHaptics
             self.inMouseMode = codable.inMouseMode
             self.showGuideBar = codable.showGuideBar
-            self.windowSize = codable.windowSize
-            if let customWindowDimensions = codable.customWindowDimensions?.nsSize {
-                self.customWindowDimensions = customWindowDimensions
+            self.keyboardWindowSize = codable.keyboardWindowSize
+            if let keyboardCustomDimensions = codable.keyboardCustomDimensions?.nsSize {
+                self.keyboardCustomDimensions = keyboardCustomDimensions
             }
-            self.windowPosition = codable.windowPosition.nsPoint
+            self.keyboardWindowPosition = codable.keyboardWindowPosition.nsPoint
         } catch {
             debugPrint("[AppSettings] Failed to load settings: \(error)")
         }
@@ -741,9 +741,9 @@ final class AppSettings: ObservableObject {
             self.enableHaptics = true
             self.inMouseMode = false
             self.showGuideBar = true
-            self.windowSize = .small
-            self.customWindowDimensions = WindowSize.medium.windowDimensions()
-            self.windowPosition = .zero
+            self.keyboardWindowSize = .small
+            self.keyboardCustomDimensions = WindowSize.medium.windowDimensions()
+            self.keyboardWindowPosition = .zero
             return
         }
     }
@@ -874,7 +874,7 @@ private struct AppSettingsCodable: Codable {
     var enableHaptics: Bool
     var inMouseMode: Bool
     var showGuideBar: Bool
-    var windowSize: WindowSize
-    var customWindowDimensions: CodableSize?
-    var windowPosition: CodablePoint
+    var keyboardWindowSize: WindowSize
+    var keyboardCustomDimensions: CodableSize?
+    var keyboardWindowPosition: CodablePoint
 }
