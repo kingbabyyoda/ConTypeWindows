@@ -12,11 +12,14 @@ private final class NonActivatingOverlayPanel: NSPanel {
 final class OverlayWindowController {
     private var hasShownKeyboard = false
     private var isApplyingProgrammaticResize = false
+    private var isApplyingProgrammaticSnap = false
     private var cancellables = Set<AnyCancellable>()
     private var keyboardWindow: NSWindow?
     private var mouseWindow: NSWindow?
+    private var positionGuideWindow: NSWindow?
     private let settings: AppSettings
     private let keyboardViewModel: KeyboardOverlayViewModel
+    private let positionGuideModel = OverlayPositionGuideModel()
     private let keyEmitter = KeyEmitter()
 
     var isKeyboardVisible: Bool {
@@ -50,7 +53,7 @@ final class OverlayWindowController {
             return mouseWindow.isVisible
         } else {
             let keyboardWindow = makeWindowIfNeeded()
-            resizeWindow(to: settings.keyboardWindowSize)
+            resizeWindow(to: settings.keyboardWindowSize, refreshGuide: false)
             SkyLightOperator.shared.delegateWindow(keyboardWindow)
             
             keyboardWindow.orderFrontRegardless()
@@ -61,6 +64,8 @@ final class OverlayWindowController {
     func hide() {
         keyboardWindow?.orderOut(nil)
         mouseWindow?.orderOut(nil)
+        positionGuideWindow?.orderOut(nil)
+        positionGuideModel.clear()
     }
 
     @discardableResult
@@ -193,7 +198,7 @@ final class OverlayWindowController {
         return window
     }
 
-    private func resizeWindow(to size: WindowSize) {
+    private func resizeWindow(to size: WindowSize, refreshGuide: Bool = true) {
         guard let keyboardWindow else { return }
         guard !isApplyingProgrammaticResize else { return }
         let screen = NSScreen.main ?? keyboardWindow.screen ?? NSScreen.screens.first
@@ -244,6 +249,178 @@ final class OverlayWindowController {
             animate: true
         )
         isApplyingProgrammaticResize = false
+        if refreshGuide {
+            refreshPositionGuide(for: keyboardWindow)
+        }
+    }
+    
+    private func makePositionGuideWindowIfNeeded(for screenFrame: NSRect) -> NSWindow {
+        if let positionGuideWindow {
+            if positionGuideWindow.frame != screenFrame {
+                positionGuideWindow.setFrame(screenFrame, display: false)
+            }
+            return positionGuideWindow
+        }
+        
+        let hostingController = NSHostingController(
+            rootView: OverlayPositionGuideView(model: positionGuideModel)
+        )
+        let baseMask: NSWindow.StyleMask = [
+            .borderless, .fullSizeContentView,
+        ]
+        let window = NonActivatingOverlayPanel(
+            contentRect: screenFrame,
+            styleMask: baseMask.union(.nonactivatingPanel),
+            backing: .buffered,
+            defer: false
+        )
+        
+        window.contentViewController = hostingController
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.level = .floating
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window.ignoresMouseEvents = true
+        window.isReleasedWhenClosed = false
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        
+        self.positionGuideWindow = window
+        return window
+    }
+    
+    private func refreshPositionGuide(for window: NSWindow) {
+        guard let screenFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame else {
+            clearPositionGuide()
+            return
+        }
+        
+        let screenRect = NSRect(origin: screenFrame.origin, size: screenFrame.size)
+        positionGuideModel.screenFrame = screenRect
+        
+        if window == keyboardWindow {
+            let targetFrame = keyboardGuideTargetFrame(for: window.frame, screenFrame: screenRect)
+            let distance = centerDistance(between: window.frame, and: targetFrame)
+            let revealDistance: CGFloat = 88
+            let snapDistance: CGFloat = 24
+            
+            if distance <= snapDistance {
+                snapKeyboardWindow(to: targetFrame.origin)
+                clearPositionGuide()
+                return
+            }
+            
+            if distance <= revealDistance && distance > 1 {
+                positionGuideModel.targets = [OverlayPositionGuideTarget(kind: .keyboard, frame: targetFrame)]
+                makePositionGuideWindowIfNeeded(for: screenRect).orderFrontRegardless()
+            } else {
+                clearPositionGuide()
+            }
+        } else if window == mouseWindow {
+            let targets = mouseGuideTargets(for: window.frame.size, screenFrame: screenRect)
+            guard let nearestTarget = targets.min(by: {
+                originDistance(between: window.frame.origin, and: $0.frame.origin) < originDistance(between: window.frame.origin, and: $1.frame.origin)
+            }) else {
+                clearPositionGuide()
+                return
+            }
+            
+            let distance = originDistance(between: window.frame.origin, and: nearestTarget.frame.origin)
+            let revealDistance: CGFloat = 52
+            let snapDistance: CGFloat = 18
+            
+            if distance <= snapDistance {
+                snapMouseWindow(to: nearestTarget.frame.origin)
+                clearPositionGuide()
+                return
+            }
+            
+            if distance <= revealDistance && distance > 1 {
+                positionGuideModel.targets = [nearestTarget]
+                makePositionGuideWindowIfNeeded(for: screenRect).orderFrontRegardless()
+            } else {
+                clearPositionGuide()
+            }
+        } else {
+            clearPositionGuide()
+        }
+    }
+    
+    private func clearPositionGuide() {
+        positionGuideWindow?.orderOut(nil)
+        positionGuideModel.clear()
+    }
+    
+    private func snapKeyboardWindow(to origin: NSPoint) {
+        guard let keyboardWindow, keyboardWindow.frame.origin != origin else { return }
+        isApplyingProgrammaticSnap = true
+        keyboardWindow.setFrameOrigin(origin)
+        isApplyingProgrammaticSnap = false
+        settings.keyboardWindowPosition = origin
+    }
+    
+    private func snapMouseWindow(to origin: NSPoint) {
+        guard let mouseWindow, mouseWindow.frame.origin != origin else { return }
+        isApplyingProgrammaticSnap = true
+        mouseWindow.setFrameOrigin(origin)
+        isApplyingProgrammaticSnap = false
+        settings.mouseWindowPosition = origin
+    }
+    
+    private func keyboardGuideTargetFrame(for currentFrame: NSRect, screenFrame: NSRect) -> NSRect {
+        NSRect(
+            x: screenFrame.midX - (currentFrame.width / 2),
+            y: screenFrame.midY - (currentFrame.height / 2),
+            width: currentFrame.width,
+            height: currentFrame.height
+        )
+    }
+    
+    private func mouseGuideTargets(for windowSize: NSSize, screenFrame: NSRect) -> [OverlayPositionGuideTarget] {
+        let inset: CGFloat = 16
+        let width = windowSize.width
+        let height = windowSize.height
+        
+        let bottomLeft = NSRect(
+            x: screenFrame.minX + inset,
+            y: screenFrame.minY + inset,
+            width: width,
+            height: height
+        )
+        let bottomRight = NSRect(
+            x: max(screenFrame.minX + inset, screenFrame.maxX - inset - width),
+            y: screenFrame.minY + inset,
+            width: width,
+            height: height
+        )
+        let topLeft = NSRect(
+            x: screenFrame.minX + inset,
+            y: max(screenFrame.minY + inset, screenFrame.maxY - inset - height),
+            width: width,
+            height: height
+        )
+        let topRight = NSRect(
+            x: max(screenFrame.minX + inset, screenFrame.maxX - inset - width),
+            y: max(screenFrame.minY + inset, screenFrame.maxY - inset - height),
+            width: width,
+            height: height
+        )
+        
+        return [
+            OverlayPositionGuideTarget(kind: .mouse, frame: bottomLeft),
+            OverlayPositionGuideTarget(kind: .mouse, frame: bottomRight),
+            OverlayPositionGuideTarget(kind: .mouse, frame: topLeft),
+            OverlayPositionGuideTarget(kind: .mouse, frame: topRight)
+        ]
+    }
+    
+    private func centerDistance(between first: NSRect, and second: NSRect) -> CGFloat {
+        hypot(first.midX - second.midX, first.midY - second.midY)
+    }
+    
+    private func originDistance(between first: NSPoint, and second: NSPoint) -> CGFloat {
+        hypot(first.x - second.x, first.y - second.y)
     }
     
     private func makeMouseWindowIfNeeded() -> NSWindow {
@@ -315,16 +492,23 @@ final class OverlayWindowController {
             newOrigin = NSPoint(x: x, y: y)
         }
         
+        isApplyingProgrammaticSnap = true
         mouseWindow.setFrameOrigin(newOrigin)
+        isApplyingProgrammaticSnap = false
+        settings.mouseWindowPosition = newOrigin
     }
     //MARK: - Window Event Handlers
     @objc private func windowDidMove(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        guard !isApplyingProgrammaticResize, !isApplyingProgrammaticSnap else { return }
+        
         if window == keyboardWindow {
             settings.keyboardWindowPosition = window.frame.origin
         } else if window == mouseWindow {
             settings.mouseWindowPosition = window.frame.origin
         }
+        
+        refreshPositionGuide(for: window)
     }
 
     @objc private func windowDidEndLiveResize(_ notification: Notification) {
