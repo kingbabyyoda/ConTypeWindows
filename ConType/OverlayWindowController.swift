@@ -13,6 +13,18 @@ final class OverlayWindowController {
     private var hasShownKeyboard = false
     private var isApplyingProgrammaticResize = false
     private var isApplyingProgrammaticSnap = false
+    private var guideHideWorkItem: DispatchWorkItem?
+    private var keyboardSnapLockOrigin: NSPoint?
+    private var mouseSnapLockOrigin: NSPoint?
+    private var keyboardSnapSuppressionOrigin: NSPoint?
+    private var mouseSnapSuppressionOrigin: NSPoint?
+    private var keyboardSessionHasSnap = false
+    private var mouseSessionHasSnap = false
+    private var dragLockWindow: NSWindow?
+    private var dragLockOrigin: NSPoint?
+    private var localMouseUpMonitor: Any?
+    private var globalMouseUpMonitor: Any?
+    private var dragLockFallbackWorkItem: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
     private var keyboardWindow: NSWindow?
     private var mouseWindow: NSWindow?
@@ -64,8 +76,14 @@ final class OverlayWindowController {
     func hide() {
         keyboardWindow?.orderOut(nil)
         mouseWindow?.orderOut(nil)
-        positionGuideWindow?.orderOut(nil)
-        positionGuideModel.clear()
+        clearPositionGuide()
+        unlockWindowDragLock()
+        keyboardSnapLockOrigin = nil
+        mouseSnapLockOrigin = nil
+        keyboardSnapSuppressionOrigin = nil
+        mouseSnapSuppressionOrigin = nil
+        keyboardSessionHasSnap = false
+        mouseSessionHasSnap = false
     }
 
     @discardableResult
@@ -249,6 +267,10 @@ final class OverlayWindowController {
             animate: true
         )
         isApplyingProgrammaticResize = false
+        unlockWindowDragLock()
+        keyboardSnapLockOrigin = nil
+        keyboardSnapSuppressionOrigin = nil
+        keyboardSessionHasSnap = false
         if refreshGuide {
             refreshPositionGuide(for: keyboardWindow)
         }
@@ -304,6 +326,27 @@ final class OverlayWindowController {
             let distance = centerDistance(between: window.frame, and: targetFrame)
             let revealDistance: CGFloat = 88
             let snapDistance: CGFloat = 24
+            let releaseDistance: CGFloat = keyboardSessionHasSnap ? 156 : 96
+            let suppressionDistance: CGFloat = keyboardSessionHasSnap ? 100 : 68
+            
+            if let snapOrigin = keyboardSnapLockOrigin {
+                let movedAwayDistance = originDistance(between: window.frame.origin, and: snapOrigin)
+                if movedAwayDistance < releaseDistance {
+                    clearPositionGuide()
+                    return
+                }
+                keyboardSnapSuppressionOrigin = snapOrigin
+                keyboardSnapLockOrigin = nil
+            }
+            
+            if let suppressionOrigin = keyboardSnapSuppressionOrigin {
+                let suppressionOffset = originDistance(between: window.frame.origin, and: suppressionOrigin)
+                if suppressionOffset < suppressionDistance {
+                    clearPositionGuide()
+                    return
+                }
+                keyboardSnapSuppressionOrigin = nil
+            }
             
             if distance <= snapDistance {
                 snapKeyboardWindow(to: targetFrame.origin)
@@ -329,6 +372,27 @@ final class OverlayWindowController {
             let distance = originDistance(between: window.frame.origin, and: nearestTarget.frame.origin)
             let revealDistance: CGFloat = 52
             let snapDistance: CGFloat = 18
+            let releaseDistance: CGFloat = mouseSessionHasSnap ? 108 : 64
+            let suppressionDistance: CGFloat = mouseSessionHasSnap ? 72 : 44
+            
+            if let snapOrigin = mouseSnapLockOrigin {
+                let movedAwayDistance = originDistance(between: window.frame.origin, and: snapOrigin)
+                if movedAwayDistance < releaseDistance {
+                    clearPositionGuide()
+                    return
+                }
+                mouseSnapSuppressionOrigin = snapOrigin
+                mouseSnapLockOrigin = nil
+            }
+            
+            if let suppressionOrigin = mouseSnapSuppressionOrigin {
+                let suppressionOffset = originDistance(between: window.frame.origin, and: suppressionOrigin)
+                if suppressionOffset < suppressionDistance {
+                    clearPositionGuide()
+                    return
+                }
+                mouseSnapSuppressionOrigin = nil
+            }
             
             if distance <= snapDistance {
                 snapMouseWindow(to: nearestTarget.frame.origin)
@@ -348,8 +412,69 @@ final class OverlayWindowController {
     }
     
     private func clearPositionGuide() {
+        guideHideWorkItem?.cancel()
+        guideHideWorkItem = nil
         positionGuideWindow?.orderOut(nil)
         positionGuideModel.clear()
+    }
+    
+    private func scheduleGuideAutoHide() {
+        guideHideWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.guideHideWorkItem = nil
+            self?.positionGuideWindow?.orderOut(nil)
+            self?.positionGuideModel.clear()
+            self?.keyboardSessionHasSnap = false
+            self?.mouseSessionHasSnap = false
+        }
+        guideHideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: workItem)
+    }
+    
+    private func lockWindowDragUntilMouseUp(_ window: NSWindow, snappedOrigin: NSPoint) {
+        unlockWindowDragLock()
+        dragLockWindow = window
+        dragLockOrigin = snappedOrigin
+        window.isMovableByWindowBackground = false
+        
+        localMouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in
+            self?.unlockWindowDragLock()
+            return event
+        }
+        
+        globalMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.unlockWindowDragLock()
+            }
+        }
+        
+        let fallbackWorkItem = DispatchWorkItem { [weak self] in
+            self?.unlockWindowDragLock()
+        }
+        dragLockFallbackWorkItem = fallbackWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: fallbackWorkItem)
+    }
+    
+    private func unlockWindowDragLock() {
+        dragLockFallbackWorkItem?.cancel()
+        dragLockFallbackWorkItem = nil
+        
+        if let localMouseUpMonitor {
+            NSEvent.removeMonitor(localMouseUpMonitor)
+            self.localMouseUpMonitor = nil
+        }
+        
+        if let globalMouseUpMonitor {
+            NSEvent.removeMonitor(globalMouseUpMonitor)
+            self.globalMouseUpMonitor = nil
+        }
+        
+        if let dragLockWindow {
+            dragLockWindow.isMovableByWindowBackground = true
+        }
+        
+        dragLockWindow = nil
+        dragLockOrigin = nil
     }
     
     private func snapKeyboardWindow(to origin: NSPoint) {
@@ -357,6 +482,10 @@ final class OverlayWindowController {
         isApplyingProgrammaticSnap = true
         keyboardWindow.setFrameOrigin(origin)
         isApplyingProgrammaticSnap = false
+        keyboardSnapLockOrigin = origin
+        keyboardSnapSuppressionOrigin = nil
+        keyboardSessionHasSnap = true
+        lockWindowDragUntilMouseUp(keyboardWindow, snappedOrigin: origin)
         settings.keyboardWindowPosition = origin
     }
     
@@ -365,6 +494,10 @@ final class OverlayWindowController {
         isApplyingProgrammaticSnap = true
         mouseWindow.setFrameOrigin(origin)
         isApplyingProgrammaticSnap = false
+        mouseSnapLockOrigin = origin
+        mouseSnapSuppressionOrigin = nil
+        mouseSessionHasSnap = true
+        lockWindowDragUntilMouseUp(mouseWindow, snappedOrigin: origin)
         settings.mouseWindowPosition = origin
     }
     
@@ -495,11 +628,23 @@ final class OverlayWindowController {
         isApplyingProgrammaticSnap = true
         mouseWindow.setFrameOrigin(newOrigin)
         isApplyingProgrammaticSnap = false
+        unlockWindowDragLock()
+        mouseSnapLockOrigin = nil
+        mouseSnapSuppressionOrigin = nil
+        mouseSessionHasSnap = false
         settings.mouseWindowPosition = newOrigin
     }
     //MARK: - Window Event Handlers
     @objc private func windowDidMove(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        
+        if let dragLockWindow, window == dragLockWindow, let dragLockOrigin, window.frame.origin != dragLockOrigin {
+            isApplyingProgrammaticSnap = true
+            window.setFrameOrigin(dragLockOrigin)
+            isApplyingProgrammaticSnap = false
+            return
+        }
+        
         guard !isApplyingProgrammaticResize, !isApplyingProgrammaticSnap else { return }
         
         if window == keyboardWindow {
@@ -509,6 +654,7 @@ final class OverlayWindowController {
         }
         
         refreshPositionGuide(for: window)
+        scheduleGuideAutoHide()
     }
 
     @objc private func windowDidEndLiveResize(_ notification: Notification) {
