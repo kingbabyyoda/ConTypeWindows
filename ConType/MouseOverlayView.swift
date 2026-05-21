@@ -19,15 +19,15 @@ struct MouseOverlayView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .foregroundStyle(.primary)
-                    .padding(12)
             }
+            .padding(12)
             .buttonStyle(.plain)
-            .glassEffect(
-                .regular
-                .interactive(),
-                in: Circle()
-            )
         }
+        .glassEffect(
+            .regular
+                .interactive(),
+            in: Circle()
+        )
         .frame(width: 64, height: 64)
     }
 }

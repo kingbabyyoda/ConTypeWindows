@@ -43,6 +43,7 @@ final class OverlayWindowController {
         
         if settings.inMouseMode {
             let mouseWindow = makeMouseWindowIfNeeded()
+            positionMouseWindow()
             SkyLightOperator.shared.delegateWindow(mouseWindow)
             
             mouseWindow.orderFrontRegardless()
@@ -298,6 +299,24 @@ final class OverlayWindowController {
         return window
     }
 
+    func positionMouseWindow() {
+        guard let mouseWindow else { return }
+        let screen = NSScreen.main ?? mouseWindow.screen ?? NSScreen.screens.first
+        guard let frame = screen?.visibleFrame else { return }
+        let mouseWindowPosition = settings.mouseWindowPosition
+        
+        let newOrigin: NSPoint
+        if mouseWindowPosition != .zero {
+            newOrigin = mouseWindowPosition
+        } else {
+            // Place in bottom left
+            let x = frame.minX + 16
+            let y = frame.minY + 16
+            newOrigin = NSPoint(x: x, y: y)
+        }
+        
+        mouseWindow.setFrameOrigin(newOrigin)
+    }
     //MARK: - Window Event Handlers
     @objc private func windowDidMove(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
