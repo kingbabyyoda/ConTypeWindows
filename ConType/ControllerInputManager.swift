@@ -1,3 +1,10 @@
+//
+//  AppSettings.swift
+//  ConType
+//
+//  Created by Ethan John Lagera on 4/14/26.
+//
+
 import Foundation
 import GameController
 import Combine

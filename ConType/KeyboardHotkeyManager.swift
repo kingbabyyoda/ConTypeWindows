@@ -1,3 +1,10 @@
+//
+//  KeyboardHotkeyManager.swift
+//  ConType
+//
+//  Created by Ethan John Lagera on 4/14/26.
+//
+
 import AppKit
 import ApplicationServices
 
