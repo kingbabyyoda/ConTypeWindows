@@ -53,21 +53,40 @@ struct OverlayPositionGuideView: View {
     private func guideView(for target: OverlayPositionGuideTarget, in size: CGSize) -> some View {
         let localFrame = localFrame(for: target.frame, in: size)
         let strokeStyle = StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: [8, 6])
-        let cornerRadius = max(12, min(localFrame.width, localFrame.height) * 0.15)
+        let cornerRadius = max(18, min(30, min(size.width, size.height) * 0.06))
         
         switch target.kind {
         case .keyboard:
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Color.primary.opacity(0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.28), style: strokeStyle)
-                )
-                .frame(width: localFrame.width, height: localFrame.height)
-                .position(x: localFrame.midX, y: localFrame.midY)
-                .allowsHitTesting(false)
-                .transition(.opacity)
+            ZStack {
+                // MARK: Ghost Overlay Outline
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.primary.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.28), style: strokeStyle)
+                    )
+                
+                // MARK: Vertical Guide Lines
+                GeometryReader { geometry in
+                    Path { path in
+                        path.move(to: CGPoint(x: 0, y: -size.height))
+                        path.addLine(to: CGPoint(x: 0, y: size.height * 2))
+                    }
+                    .stroke(Color.primary.opacity(0.20), style: strokeStyle)
+                    
+                    Path { path in
+                        path.move(to: CGPoint(x: geometry.size.width, y: -size.height))
+                        path.addLine(to: CGPoint(x: geometry.size.width, y: size.height * 2))
+                    }
+                    .stroke(Color.primary.opacity(0.20), style: strokeStyle)
+                }
+            }
+            .frame(width: localFrame.width, height: localFrame.height)
+            .position(x: localFrame.midX, y: localFrame.midY)
+            .allowsHitTesting(false)
+            .transition(.opacity)
         case .mouse:
+            // MARK: Ghost Overlay Outline
             Circle()
                 .fill(Color.primary.opacity(0.08))
                 .overlay(

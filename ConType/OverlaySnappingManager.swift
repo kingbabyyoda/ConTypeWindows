@@ -9,6 +9,12 @@ import AppKit
 import Combine
 import SwiftUI
 
+private enum KeyboardSnapState {
+    case none
+    case absoluteCenter
+    case verticalTrack
+}
+
 @MainActor
 final class OverlaySnappingManager: ObservableObject {
     var keyboardSnapDistance: CGFloat = 72
@@ -21,6 +27,8 @@ final class OverlaySnappingManager: ObservableObject {
     private let positionGuideModel = OverlayPositionGuideModel()
     private var positionGuideWindow: NSWindow?
     private var guideHideWorkItem: DispatchWorkItem?
+    private var currentKeyboardSnapState: KeyboardSnapState = .none
+    private var isMouseTrackingActive = false
     
     @Published var keyboardSnapLockOrigin: NSPoint?
     @Published var mouseSnapLockOrigin: NSPoint?
@@ -85,21 +93,59 @@ final class OverlaySnappingManager: ObservableObject {
         positionGuideModel.screenFrame = screenRect
         
         if window == keyboardWindow {
-            let targetFrame = keyboardGuideTargetFrame(for: window.frame, screenFrame: screenRect)
-            let distance = centerDistance(between: window.frame, and: targetFrame)
+            let windowSize = settings.keyboardWindowSize.windowDimensions()
+            let targetMidX = screenRect.midX - (windowSize.width / 2)
+            let targetMidY = screenRect.midY - (windowSize.height / 2)
+            
+            let absoluteCenterTarget = NSRect(
+                x: targetMidX,
+                y: targetMidY,
+                width: window.frame.width,
+                height: window.frame.height
+            )
+            
+            let centerDistance = centerDistance(between: window.frame, and: absoluteCenterTarget)
+            let horizontalDistance = abs(window.frame.origin.x - targetMidX)
+            
             let revealDistance: CGFloat = 88
             let snapDistance: CGFloat = 24
             let releaseDistance: CGFloat = keyboardSessionHasSnap ? 156 : 96
             let suppressionDistance: CGFloat = keyboardSessionHasSnap ? 100 : 68
             
             if let snapOrigin = keyboardSnapLockOrigin {
-                let movedAwayDistance = originDistance(between: window.frame.origin, and: snapOrigin)
+                let movedAwayDistance = (currentKeyboardSnapState == .verticalTrack)
+                ? abs(window.frame.origin.x - snapOrigin.x)
+                : originDistance(between: window.frame.origin, and: snapOrigin)
+                
                 if movedAwayDistance < releaseDistance {
-                    clearPositionGuide()
-                    return
+                    if currentKeyboardSnapState == .verticalTrack {
+                        let distanceToAbsoluteCenter = centerDistance
+                        
+                        if distanceToAbsoluteCenter <= snapDistance {
+                            keyboardSnapLockOrigin = nil
+                        } else {
+                            keyboardSnapLockOrigin = window.frame.origin
+                            
+                            // Keep the guide track targets active
+                            let dynamicTargetFrame = NSRect(
+                                x: targetMidX,
+                                y: targetMidY,
+                                width: window.frame.width,
+                                height: window.frame.height
+                            )
+                            positionGuideModel.targets = [OverlayPositionGuideTarget(kind: .keyboard, frame: dynamicTargetFrame)]
+                            makePositionGuideWindowIfNeeded(for: screenRect).orderFrontRegardless()
+                            return
+                        }
+                    } else {
+                        clearPositionGuide()
+                        return
+                    }
+                } else {
+                    keyboardSnapSuppressionOrigin = snapOrigin
+                    keyboardSnapLockOrigin = nil
+                    currentKeyboardSnapState = .none
                 }
-                keyboardSnapSuppressionOrigin = snapOrigin
-                keyboardSnapLockOrigin = nil
             }
             
             if let suppressionOrigin = keyboardSnapSuppressionOrigin {
@@ -111,14 +157,33 @@ final class OverlaySnappingManager: ObservableObject {
                 keyboardSnapSuppressionOrigin = nil
             }
             
-            if distance <= snapDistance {
-                snapKeyboardWindow(to: targetFrame.origin)
+            if centerDistance <= snapDistance {
+                currentKeyboardSnapState = .absoluteCenter
+                snapKeyboardWindow(to: absoluteCenterTarget.origin)
                 clearPositionGuide()
                 return
             }
             
-            if distance <= revealDistance && distance > 1 {
-                positionGuideModel.targets = [OverlayPositionGuideTarget(kind: .keyboard, frame: targetFrame)]
+            if horizontalDistance <= snapDistance {
+                currentKeyboardSnapState = .verticalTrack
+                let snappedOrigin = NSPoint(x: targetMidX, y: window.frame.origin.y)
+                snapKeyboardWindow(to: snappedOrigin)
+                clearPositionGuide()
+                return
+            }
+            
+            // Guide Display Manager
+            if horizontalDistance <= revealDistance && horizontalDistance > 1 {
+                let guideY = targetMidY
+                
+                let dynamicTargetFrame = NSRect(
+                    x: targetMidX,
+                    y: guideY,
+                    width: window.frame.width,
+                    height: window.frame.height
+                )
+                
+                positionGuideModel.targets = [OverlayPositionGuideTarget(kind: .keyboard, frame: dynamicTargetFrame)]
                 makePositionGuideWindowIfNeeded(for: screenRect).orderFrontRegardless()
             } else {
                 clearPositionGuide()
@@ -175,23 +240,12 @@ final class OverlaySnappingManager: ObservableObject {
     }
     
     func clearPositionGuide() {
+        guard !isMouseTrackingActive else { return }
+        
         guideHideWorkItem?.cancel()
         guideHideWorkItem = nil
         positionGuideWindow?.orderOut(nil)
         positionGuideModel.clear()
-    }
-    
-    func scheduleGuideAutoHide() {
-        guideHideWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.guideHideWorkItem = nil
-            self?.positionGuideWindow?.orderOut(nil)
-            self?.positionGuideModel.clear()
-            self?.keyboardSessionHasSnap = false
-            self?.mouseSessionHasSnap = false
-        }
-        guideHideWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: workItem)
     }
     
     func snapKeyboardWindow(to origin: NSPoint) {
@@ -276,11 +330,19 @@ final class OverlaySnappingManager: ObservableObject {
         
         switch phase {
         case .began:
+            isMouseTrackingActive = true
             dragStartMouseLocation = currentGlobalMouse
             dragStartWindowOrigin = window.frame.origin
             virtualWindowOrigin = window.frame.origin
             
+            guideHideWorkItem?.cancel()
+            guideHideWorkItem = nil
+            
         case .changed:
+            isMouseTrackingActive = true
+            guideHideWorkItem?.cancel()
+            guideHideWorkItem = nil
+            
             let deltaX = currentGlobalMouse.x - dragStartMouseLocation.x
             let deltaY = currentGlobalMouse.y - dragStartMouseLocation.y
             virtualWindowOrigin = NSPoint(
@@ -293,20 +355,54 @@ final class OverlaySnappingManager: ObservableObject {
             let snapOrigin = isKeyboard ? keyboardSnapLockOrigin : mouseSnapLockOrigin
             
             if isSnapped, let snapPoint = snapOrigin {
-                let pullDistance = originDistance(between: virtualWindowOrigin, and: snapPoint)
-                let breakoutThreshold: CGFloat = isKeyboard ? keyboardSnapDistance : mouseSnapDistance
-                
-                if pullDistance > breakoutThreshold {
-                    // Break out of the snap
-                    if isKeyboard {
-                        keyboardSessionHasSnap = false
-                        keyboardSnapLockOrigin = nil
-                    } else {
+                if isKeyboard {
+                    switch currentKeyboardSnapState {
+                    case .absoluteCenter:
+                        // Rule 1: Default position - uniform breakout difficulty across both axes
+                        let pullDistance = originDistance(between: virtualWindowOrigin, and: snapPoint)
+                        if pullDistance > keyboardSnapDistance {
+                            keyboardSessionHasSnap = false
+                            keyboardSnapLockOrigin = nil
+                            currentKeyboardSnapState = .none
+                            window.setFrameOrigin(virtualWindowOrigin)
+                            refreshPositionGuide(for: window)
+                        } else {
+                            // Lock rigidly in place while within threshold
+                            window.setFrameOrigin(snapPoint)
+                        }
+                        
+                    case .verticalTrack:
+                        // Rule 2: Free vertical glide. Only check horizontal strain for breakouts.
+                        let horizontalPull = abs(virtualWindowOrigin.x - snapPoint.x)
+                        
+                        // Lower the threshold slightly for a smoother lateral slide-off effect (e.g., 70% of default difficulty)
+                        let reducedThreshold = keyboardSnapDistance * 0.70
+                        
+                        if horizontalPull > reducedThreshold {
+                            keyboardSessionHasSnap = false
+                            keyboardSnapLockOrigin = nil
+                            currentKeyboardSnapState = .none
+                            window.setFrameOrigin(virtualWindowOrigin)
+                            refreshPositionGuide(for: window)
+                        } else {
+                            // Update window tracking smoothly down the X track, allowing completely free Y transit
+                            window.setFrameOrigin(NSPoint(x: snapPoint.x, y: virtualWindowOrigin.y))
+                            refreshPositionGuide(for: window)
+                        }
+                        
+                    case .none:
+                        window.setFrameOrigin(virtualWindowOrigin)
+                        refreshPositionGuide(for: window)
+                    }
+                } else {
+                    // Standard Mouse Window Snapping logic
+                    let pullDistance = originDistance(between: virtualWindowOrigin, and: snapPoint)
+                    if pullDistance > mouseSnapDistance {
                         mouseSessionHasSnap = false
                         mouseSnapLockOrigin = nil
+                        window.setFrameOrigin(virtualWindowOrigin)
+                        refreshPositionGuide(for: window)
                     }
-                    window.setFrameOrigin(virtualWindowOrigin)
-                    refreshPositionGuide(for: window)
                 }
             } else {
                 window.setFrameOrigin(virtualWindowOrigin)
@@ -314,7 +410,8 @@ final class OverlaySnappingManager: ObservableObject {
             }
             
         case .ended:
-            break
+            isMouseTrackingActive = false
+            clearPositionGuide()
         }
     }
 }

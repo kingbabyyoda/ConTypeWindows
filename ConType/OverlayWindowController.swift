@@ -398,7 +398,6 @@ final class OverlayWindowController {
         }
         
         snappingManager.refreshPositionGuide(for: window)
-        snappingManager.scheduleGuideAutoHide()
     }
 
     @objc private func windowDidEndLiveResize(_ notification: Notification) {
