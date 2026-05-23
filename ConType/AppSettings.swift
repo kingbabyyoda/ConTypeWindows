@@ -9,6 +9,12 @@ import AppKit
 import Combine
 import Foundation
 
+
+/// An enum representing the different types of input that can be mapped to controller axes.
+/// Contains:
+/// - Left Stick
+/// - Right Stick
+/// - D-pad
 enum AxisInput: String, Identifiable {
     case leftStick
     case rightStick
@@ -25,6 +31,13 @@ enum AxisInput: String, Identifiable {
     }
 }
 
+/// An enum representing the different actions an axis input can do
+/// Contains:
+/// - Control Overlay Movement
+/// - Control Mouse Movement
+/// - Arrow Keys
+/// - Scroll Wheel
+/// - None
 enum AxisInputType: String, CaseIterable, Identifiable, Hashable {
     case none
     case overlayMovement
@@ -32,12 +45,16 @@ enum AxisInputType: String, CaseIterable, Identifiable, Hashable {
     case arrowKeys
     case scrollWheel
     
+    /// The keyboard axis actions
     static let keyboardOptions: [AxisInputType] = [.none, .overlayMovement, .arrowKeys]
     
+    /// The mouse axis actions
     static let mouseOptions: [AxisInputType] = [.none, .mouseMovement, .scrollWheel]
     
+    /// Axis action identifier
     var id: String { rawValue }
     
+    /// Human readable title for the axis action
     var title: String {
         switch self {
         case .none: return "None"
@@ -49,11 +66,22 @@ enum AxisInputType: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+/// An enum representing the different visual styles for controller glyphs.
+/// Contains:
+/// - Generic (Xbox-style)
+/// - PlayStation
+/// - Nintendo Switch
 enum ControllerGlyphStyle: Equatable {
     case generic
     case playStation
     case nintendoSwitch
     
+    
+    /// Detects the appropriate controller glyph style based on the provided vendor name and product category.
+    /// - Parameters:
+    ///   - vendorName: The vendor name of the controller, typically provided by the system's device information.
+    ///   - productCategory: The product category of the controller, which may include additional details about the controller model or type.
+    /// - Returns: A `ControllerGlyphStyle` that best matches the provided information, allowing the app to display the correct button icons for the detected controller.
     static func detect(vendorName: String?, productCategory: String?) -> ControllerGlyphStyle {
         let parts = [vendorName, productCategory]
             .compactMap { $0?.lowercased() }
@@ -78,6 +106,7 @@ enum ControllerGlyphStyle: Equatable {
         return .generic
     }
     
+    /// The name of the asset to use for the guide button based on the glyph style.
     var guideGlyphAssetName: String {
         switch self {
         case .generic:
@@ -90,11 +119,19 @@ enum ControllerGlyphStyle: Equatable {
     }
 }
 
+/// An enum representing the guide buttons on a controller.
+/// Contains:
+/// - Menu
+/// - Home
+/// - Options
 enum ControllerGuideButton: String, CaseIterable, Equatable {
     case menu
     case home
     case options
     
+    /// Returns the display title for the guide button based on the controller glyph style.
+    /// - Parameter style: The `ControllerGlyphStyle` to determine the appropriate title for the button.
+    /// - Returns: A `String` representing the display title for the guide button, which may vary based on the controller type (e.g., "+" for Nintendo Switch menu button, "PS" for PlayStation home button).
     func displayTitle(for style: ControllerGlyphStyle) -> String {
         switch (style, self) {
         case (.nintendoSwitch, .menu):
@@ -118,6 +155,9 @@ enum ControllerGuideButton: String, CaseIterable, Equatable {
         }
     }
     
+    /// The name of the asset to use for the guide button based on the glyph style and button type.
+    /// - Parameter style: The `ControllerGlyphStyle` to determine the appropriate asset name for the button.
+    /// - Returns: An optional `String` representing the name of the asset to use for the guide button. Returns `nil` if there is no specific asset for the given style and button combination (e.g., no unique asset for the home button on non-PlayStation controllers).
     func glyphAssetName(for style: ControllerGlyphStyle) -> String? {
         switch (style, self) {
         case (.playStation, .menu):
@@ -138,17 +178,24 @@ enum ControllerGuideButton: String, CaseIterable, Equatable {
     }
 }
 
+/// A struct representing a detected controller, including its name and the guide buttons it has.
 struct DetectedController: Equatable {
     var name: String
     var guideButtons: [ControllerGuideButton]
 }
 
+/// An enum representing the different controller toggle bindings that can be configured in the app.
+/// Contains:
+/// - Keyboard Toggle (Guide Button + a face button to toggle keyboard overlay)
+/// - Mouse Toggle (Guide Button + a face button to toggle mouse mode)
 enum ControllerToggleBinding: String, CaseIterable, Identifiable {
     case keyboardToggle
     case mouseToggle
     
+    /// Toggle identifier.
     var id: String { rawValue }
     
+    /// A human-readable title for the toggle binding.
     var title: String {
         switch self {
         case .keyboardToggle: return "Keyboard Toggle"
@@ -156,20 +203,30 @@ enum ControllerToggleBinding: String, CaseIterable, Identifiable {
         }
     }
     
+    /// Returns a string for the toggle binding containing the set shortcut.
+    /// - Parameters:
+    ///   - binding: A `ControllerAssignableButton` representing the controller button that is combined with the guide button to perform the toggle action.
+    ///   - style: The `ControllerGlyphStyle` to determine how the button should be displayed in the string.
+    /// - Returns: A `String` that describes the toggle binding, formatted as "Guide + [Button Name]".
     func glyphName(_ binding: ControllerAssignableButton, for style: ControllerGlyphStyle) -> String {
         "Guide + \(binding.displayTitle(for: style))"
     }
 }
 
+/// A struct representing the controller toggle bindings for both keyboard and mouse modes.
 struct ControllerToggleBindings: Equatable {
     var keyboardToggle: ControllerAssignableButton
     var mouseToggle: ControllerAssignableButton
     
+    /// The default toggle bindings, which can be used to reset to defaults or as initial values when the app is first installed.
     static let `default` = ControllerToggleBindings(
         keyboardToggle: .west,
         mouseToggle: .north
     )
     
+    /// Returns the toggle binding for a given `ControllerToggleBinding` type (keyboard or mouse).
+    /// - Parameter shortcut: The `ControllerToggleBinding` type for which to retrieve the binding (either `.keyboardToggle` or `.mouseToggle`).
+    /// - Returns: A `ControllerAssignableButton` representing the button that is currently set for the specified toggle binding type.
     func binding(for shortcut: ControllerToggleBinding) -> ControllerAssignableButton {
         switch shortcut {
         case .keyboardToggle:
@@ -179,6 +236,10 @@ struct ControllerToggleBindings: Equatable {
         }
     }
     
+    /// Sets the toggle binding for a given `ControllerToggleBinding` type (keyboard or mouse).
+    /// - Parameters:
+    ///  - binding: A `ControllerAssignableButton` representing the button to set for the toggle action.
+    ///  - shortcut: The `ControllerToggleBinding` type for which to set the binding (either `.keyboardToggle` or `.mouseToggle`).
     mutating func setBinding(_ binding: ControllerAssignableButton, for shortcut: ControllerToggleBinding) {
         switch shortcut {
         case .keyboardToggle:
@@ -188,12 +249,30 @@ struct ControllerToggleBindings: Equatable {
         }
     }
     
+    /// Returns a string describing the shortcut for a given `ControllerToggleBinding` type, formatted as "Guide + [Button Name]".
+    /// - Parameters:
+    ///  - shortcut: The `ControllerToggleBinding` type for which to generate the shortcut text (either `.keyboardToggle` or `.mouseToggle`).
+    ///  - style: The `ControllerGlyphStyle` to determine how the button should be displayed in the string.
+    ///  - Returns: A `String` that describes the shortcut for the specified toggle binding type, formatted as "Guide + [Button Name]".
     func shortcutText(for shortcut: ControllerToggleBinding, style: ControllerGlyphStyle) -> String {
         let binding = binding(for: shortcut)
         return "Guide + \(binding.displayTitle(for: style))"
     }
 }
 
+/// An enum representing the buttons on a controller that can be assigned to actions in the app.
+/// Contains:
+/// - South (The ABXY/Shapes face button)
+/// - Eas (The ABXY/Shapes face button)
+/// - West (The ABXY/Shapes face button)
+/// - North (The ABXY/Shapes face button)
+/// - Left Shoulder
+/// - Right Shoulder
+/// - Left Trigger
+/// - Right Trigger
+/// - Left Stick Press
+/// - Right Stick Press
+/// - None
 enum ControllerAssignableButton: String, CaseIterable, Identifiable {
     case south
     case east
@@ -207,8 +286,10 @@ enum ControllerAssignableButton: String, CaseIterable, Identifiable {
     case rightStickPress
     case none
     
+    /// Button identifier.
     var id: String { rawValue }
     
+    /// A human-readable title for the button.
     var title: String {
         switch self {
         case .south: return "A"
@@ -225,6 +306,9 @@ enum ControllerAssignableButton: String, CaseIterable, Identifiable {
         }
     }
     
+    /// Returns a display title for the button based on the controller glyph style.
+    /// - Parameter style: The `ControllerGlyphStyle` to determine how the button should be displayed in the title.
+    /// - Returns: A `String` representing the display title for the button, which may vary based on the controller type.
     func displayTitle(for style: ControllerGlyphStyle) -> String {
         switch self {
         case .south:
@@ -252,6 +336,7 @@ enum ControllerAssignableButton: String, CaseIterable, Identifiable {
         }
     }
     
+    /// The fallback text to be used when the glyph asset for the button is not available.
     var fallbackGlyphText: String {
         switch self {
         case .south: return "A"
@@ -268,6 +353,9 @@ enum ControllerAssignableButton: String, CaseIterable, Identifiable {
         }
     }
     
+    /// Returns the name of the asset to use for the button based on the controller glyph style.
+    /// - Parameter style: The `ControllerGlyphStyle` to determine the appropriate asset name for the button.
+    /// - Returns: A `String` representing the name of the asset to use for the button, which may vary based on the controller type.
     func glyphAssetName(for style: ControllerGlyphStyle) -> String {
         switch self {
         case .south:
@@ -296,13 +384,29 @@ enum ControllerAssignableButton: String, CaseIterable, Identifiable {
     }
 }
 
+/// A struct representing the current state of controller input capture, including which buttons are currently pressed and whether the guide button is pressed.
 struct ControllerCaptureState: Equatable {
     var isGuidePressed = false
     var pressedButtons: Set<ControllerAssignableButton> = []
     
+    /// An empty capture state with no buttons pressed and the guide button not pressed.
     static let empty = ControllerCaptureState()
 }
 
+/// An enum representing the different controller action bindings that can be configured in the app.
+/// Contains:
+/// - Accept
+/// - Backspace
+/// - Space
+/// - Enter
+/// - Shift
+/// - Caps Lock
+/// - Move Caret Left
+/// - Move Caret Right
+/// - Mouse Left Click
+/// - Mouse Right Click
+/// - Enlarge Overlay
+/// - Shrink Overlay
 enum ControllerActionBinding: String, CaseIterable, Identifiable {
     case accept
     case backspace
@@ -317,14 +421,19 @@ enum ControllerActionBinding: String, CaseIterable, Identifiable {
     case enlargeWindow
     case shrinkWindow
     
+    /// The controller action bindings related to overlay controls.
     static let overlayActions: [ControllerActionBinding] = [.shrinkWindow, .enlargeWindow]
     
+    /// The controller action bindings related to keyboard input.
     static let keyboardActions: [ControllerActionBinding] = [.accept, .backspace, .space, .enter, .shift, .capsLock, .moveCaretLeft, .moveCaretRight]
     
+    /// The controller action bindings related to mouse input.
     static let mouseActions: [ControllerActionBinding] = [.mouseLeftClick, .mouseRightClick]
     
+    /// Controller action identifier.
     var id: String { rawValue }
     
+    /// A human-readable title for the controller action binding.
     var title: String {
         switch self {
         case .accept: return "Accept"
@@ -343,6 +452,7 @@ enum ControllerActionBinding: String, CaseIterable, Identifiable {
     }
 }
 
+/// A struct representing the controller action bindings for various actions in the app.
 struct ControllerActionBindings: Equatable {
     var accept: ControllerAssignableButton
     var backspace: ControllerAssignableButton
@@ -357,6 +467,7 @@ struct ControllerActionBindings: Equatable {
     var shrinkWindow: ControllerAssignableButton
     var enlargeWindow: ControllerAssignableButton
     
+    /// The default action bindings.
     static let `default` = ControllerActionBindings(
         // Keyboard Controls
         accept: .south,
@@ -377,6 +488,9 @@ struct ControllerActionBindings: Equatable {
         enlargeWindow: .rightTrigger
     )
     
+    /// Returns the button binding for a given `ControllerActionBinding`.
+    /// - Parameter action: The `ControllerActionBinding` for which to retrieve the button binding.
+    /// - Returns: A `ControllerAssignableButton` representing the button that is currently set for the specified action binding.
     func button(for action: ControllerActionBinding) -> ControllerAssignableButton {
         switch action {
         case .accept:
@@ -406,6 +520,10 @@ struct ControllerActionBindings: Equatable {
         }
     }
     
+    /// Sets the button bidning for a given `ControllerActionBinding`.
+    /// - Parameters:
+    ///     - button: A `ControllerAssignableButton` representing the button to set for the action.
+    ///     - action: The `ControllerActionBinding` for which to set the button binding
     mutating func setButton(_ button: ControllerAssignableButton, for action: ControllerActionBinding) {
         switch action {
         case .accept:
@@ -436,6 +554,13 @@ struct ControllerActionBindings: Equatable {
     }
 }
 
+/// An enum representing the different preset window sizes for the keyboard overlay.
+/// Contains:
+/// - Small
+/// - Medium
+/// - Large
+/// - Extra Large
+/// - Custom
 enum WindowSize: String, CaseIterable, Identifiable {
     case small
     case medium
@@ -443,8 +568,10 @@ enum WindowSize: String, CaseIterable, Identifiable {
     case xLarge
     case custom
     
+    /// Window size identifier
     var id: String { rawValue }
     
+    /// A human-readable name for the window size.
     var name: String {
         switch self {
         case .small: return "Small"
@@ -455,12 +582,15 @@ enum WindowSize: String, CaseIterable, Identifiable {
         }
     }
     
+    /// A Boolean value indicating whether the window size is set to custom.
     var isCustom: Bool {
         self == .custom
     }
     
+    /// A static array of the preset window sizes that can be selected by the user, excluding the custom option.
     static let selectableCases: [WindowSize] = [.small, .medium, .large, .xLarge]
     
+    /// Returns the dimensions for the window size.
     func windowDimensions(customSize: NSSize? = nil) -> NSSize {
         switch self {
         case .small:
@@ -476,6 +606,9 @@ enum WindowSize: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Returns the next larger preset window size. If the current size is custom, it will determine the next largest preset size based on the provided custom dimensions.
+    /// - Parameter customSize: An optional `NSSize` representing the custom dimensions to use
+    /// - Returns: A `WindowSize` representing the next larger preset size.
     func largerPreset(using customSize: NSSize? = nil) -> WindowSize {
         switch self {
         case .small:
@@ -493,6 +626,9 @@ enum WindowSize: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Returns the next smaller preset window size. If the current size is custom, it will determine the next smallest preset size based on the provided custom dimensions.
+    /// - Parameter customSize: An optional `NSSize` representing the custom dimensions to use
+    /// - Returns: A `WindowSize` representing the next smaller preset size.
     func smallerPreset(using customSize: NSSize? = nil) -> WindowSize {
         switch self {
         case .small:
@@ -509,12 +645,18 @@ enum WindowSize: String, CaseIterable, Identifiable {
             return Self.selectableCases[currentIndex]
         }
     }
-
+    
+    /// Returns the appropriate preset window size for the given dimensions.
+    /// - Parameter dimensions: An `NSSize` representing the dimensions for which to determine the preset window size.
+    /// - Returns: A `WindowSize` representing the preset size that best matches the provided dimensions.
     static func preset(for dimensions: NSSize) -> WindowSize {
         let index = presetIndex(for: dimensions)
         return selectableCases[index]
     }
-
+    
+    /// Determines the index of the preset window size that best matches the provided dimensions.
+    /// - Parameter dimensions: An `NSSize` representing the dimensions for which to determine the preset index.
+    /// - Returns: An `Int` representing the index of the preset window size that best matches the provided dimensions.
     private static func presetIndex(for dimensions: NSSize) -> Int {
         let widths = selectableCases.map { $0.windowDimensions().width }
         var currentIndex = 0
@@ -529,51 +671,118 @@ enum WindowSize: String, CaseIterable, Identifiable {
     }
 }
 
+/// Class representing the app settings, which are persisted across app launches and can be observed for changes.
 @MainActor
 final class AppSettings: ObservableObject {
-    // Onboarding
+    // MARK: - Onboarding
+    /// Utilized to determine if the app was restarted from the permission screen during onboarding. Utilized when restarting the app to refresh permission.
     @Published var restartedFromPermissionScreen = false
     
-    // Bindings
+    
+    // MARK: - Bindings
+    /// The keyboard shortcut used to toggle the keyboard overlay. By default, it is set to Command + K.
     @Published var keyboardHotkey = KeyboardHotkeyManager.Shortcut(key: "k", modifiers: [.command])
+    
+    /// The controller button bindings for toggling the keyboard overlay and mouse mode, which can be customized by the user.
     @Published var controllerToggleBindings: ControllerToggleBindings = .default
+    
+    /// The controller button bindings for various actions in the app.
     @Published var controllerActionBindings: ControllerActionBindings = .default
     
-    // Preferences
+    
+    // MARK: - Preferences
+    /// A Boolean value indicating whether mouse input is enabled while the keyboard overlay is active.
     @Published var enableMouseInKeyboard: Bool = true
+    
+    /// A Boolean value indicating whether mouse input should be prioritized over keyboard input when both are enabled.
     @Published var prioritizeMouseOverKeyboard: Bool = false
+    
+    /// The layout of the keyboard to be used in the overlay, which can affect how certain keys are displayed and mapped.
     @Published var keyboardLayout: KeyboardLayout = .QWERTY
+    
+    /// The axis action assigned to the left stick.
     @Published var leftStickInputType: [AxisInputType] = [.overlayMovement, .scrollWheel]
+    
+    /// The axis action assigned to the right stick.
     @Published var rightStickInputType: [AxisInputType] = [.mouseMovement]
+    
+    /// The axis action assigned to the D-pad.
     @Published var padInputType: [AxisInputType] = [.overlayMovement]
+    
+    /// A Boolean value indicating whether the Shift action binding should toggle between Shift, Caps Lock and Regular. If false, the Shift action binding will only toggle the Shift key.
     @Published var shiftShortcutCyclesToCapsLock = true
+    
+    /// A Boolean value indicating whether the keyboard overlay can be dismissed by pressing the guide button alone.
     @Published var dismissWithGuideButton = true
+    
+    /// A Boolean value indicating whether the app should open automatically on startup.
     @Published var openAppOnStartup = false
+    
+    /// The movement style for the keyboard overlay when controlled by the controller.
     @Published var keyboardMovementStyle: KeyboardMovementMode = .limited
+    
+    /// The deadzone for the left stick.
     @Published var leftStickDeadzone: CGFloat = 0.4
+    
+    /// The deadzone for the right stick.
     @Published var rightStickDeadzone: CGFloat = 0.4
+    
+    /// The distance the mouse moves in response to controller input.
     @Published var mouseSensitivity: CGFloat = 300.0
+    
+    /// The smoothing alpha value for mouse movement.
     @Published var mouseSmoothing: CGFloat = 0.4
+    
+    /// A Boolean value indicating whether the X-axis mouse movement is inverted.
     @Published var invertMouseX: Bool = false
+    
+    /// A Boolean value indicating whether the Y-axis mouse movement is inverted.
     @Published var invertMouseY: Bool = false
+    
+    /// The distance the mouse scrolls in response to controller input.
     @Published var scrollSpeed: CGFloat = 300.0
+    
+    /// A Boolean value indicating whether the X-axis mouse scroll is inverted.
     @Published var invertScrollX: Bool = false
+    
+    /// A Boolean value indicating whether the Y-axis mouse scroll is inverted.
     @Published var invertScrollY: Bool = false
+    
+    /// A Boolean value indicating whether haptic feedback is enabled for controller input.
     @Published var enableHaptics: Bool = true
     
-    // Overlay
+    
+    // MARK: - Overlay
+    /// A Boolean value indicating wether the app is in the mouse overlay.
     @Published var inMouseMode: Bool = false
+    
+    /// A Boolean value indicating whether the guide bar is shown on the keyboard overlay.
     @Published var showGuideBar: Bool = true
+    
+    /// The preset window size for the keyboard overlay.
     @Published var keyboardWindowSize: WindowSize = .small
+    
+    /// The custom dimensions for the keyboard overlay, used when the `keyboardWindowSize` is set to `.custom`.
     @Published var keyboardCustomDimensions: NSSize = WindowSize.medium.windowDimensions()
+    
+    /// The position of the keyboard overlay window on the screen.
     @Published var keyboardWindowPosition: NSPoint = .zero
+    
+    /// The position of the mouse overlay window on the screen.
     @Published var mouseWindowPosition: NSPoint = .zero
     
-    // App state (Does not persist)
+    // MARK: - App state (Does not persist)
+    /// The visual style for controller glyphs, which can be automatically detected based on the connected controller.
     @Published var controllerGlyphStyle: ControllerGlyphStyle = .generic
+    
+    /// The current state of controller input capture, including which buttons are currently pressed and whether the guide button is pressed.
     @Published var controllerCaptureState: ControllerCaptureState = .empty
+    
+    /// The currently detected controller, including its name and the guide buttons it has.
     @Published var detectedController: DetectedController?
     
+    
+    /// A set of cancellables for managing Combine subscriptions related to saving settings when they change.
     private var cancellables = Set<AnyCancellable>()
     
     init() {
@@ -623,6 +832,7 @@ final class AppSettings: ObservableObject {
     }
     
     // MARK: - Save Code
+    /// A private static property that returns the URL for the settings file where the app settings are persisted.
     private static var settingsURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("ConType", isDirectory: true)
@@ -630,6 +840,7 @@ final class AppSettings: ObservableObject {
         return dir.appendingPathComponent("settings.json")
     }
     
+    /// Saves the current app settings to a JSON file in the Application Support directory. The settings are encoded using `JSONEncoder` and written to the file specified by `settingsURL`.
     func save() {
         let codable = AppSettingsCodable(
             restartedFromPermissionScreen: restartedFromPermissionScreen,
@@ -664,7 +875,6 @@ final class AppSettings: ObservableObject {
             mouseWindowPosition: CodablePoint(mouseWindowPosition)
         )
         do {
-            debugPrint("[AppSettings] Saving app settings to file...")
             let data = try JSONEncoder().encode(codable)
             try data.write(to: Self.settingsURL, options: [.atomic])
         } catch {
@@ -672,11 +882,11 @@ final class AppSettings: ObservableObject {
         }
     }
     
+    /// Loads the app settings from a JSON file in the Application Support directory. The settings are decoded using `JSONDecoder` and applied to the corresponding properties in the `AppSettings` class.
     func load() {
         let url = Self.settingsURL
         guard let data = try? Data(contentsOf: url) else { return }
         do {
-            debugPrint("[AppSettings] Restoring app settings from file...")
             let codable = try JSONDecoder().decode(AppSettingsCodable.self, from: data)
             self.restartedFromPermissionScreen = codable.restartedFromPermissionScreen
             self.keyboardHotkey = codable.keyboardHotkey
@@ -685,7 +895,7 @@ final class AppSettings: ObservableObject {
             self.enableMouseInKeyboard = codable.enableMouseInKeyboard
             self.prioritizeMouseOverKeyboard = codable.prioritizeMouseOverKeyboard
             
-            // Restore layout by name
+            /// Restore layout by name
             if let layout = KeyboardLayout.all.first(where: { $0.name == codable.keyboardLayoutName }) {
                 self.keyboardLayout = layout
             }
@@ -720,6 +930,8 @@ final class AppSettings: ObservableObject {
         }
     }
     
+    /// Restores the default settings for the app.
+    /// - Parameter onlyHotkeys: Wether to only restore hotkey and controller bindings defaults, or to restore all defaults including preferences and overlay settings.
     func restoreDefaults(onlyHotkeys: Bool) {
         if onlyHotkeys {
             self.keyboardHotkey = KeyboardHotkeyManager.Shortcut(key: "k", modifiers: [.command])
@@ -781,12 +993,19 @@ extension KeyboardHotkeyManager.Shortcut: Codable {
         self.init(key: key, modifiers: NSEvent.ModifierFlags(rawValue: modifiersRaw))
     }
 }
+
 extension ControllerToggleBinding: Codable {}
+
 extension ControllerToggleBindings: Codable {}
+
 extension ControllerActionBindings: Codable {}
+
 extension ControllerAssignableButton: Codable {}
+
 extension ControllerActionBinding: Codable {}
+
 extension AxisInputType: Codable {}
+
 extension WindowSize: Codable {
     enum CodingKeys: String, CodingKey {
         case value
@@ -814,6 +1033,7 @@ extension WindowSize: Codable {
         }
     }
 }
+
 extension KeyboardMovementMode: Codable {
     enum CodingKeys: String, CodingKey { case value }
     public func encode(to encoder: Encoder) throws {
@@ -836,6 +1056,7 @@ extension KeyboardMovementMode: Codable {
     }
 }
 
+/// A struct used for encoding and decoding `NSPoint` values in the `AppSettingsCodable` struct. Since `NSPoint` does not conform to `Codable`, this struct provides a way to represent point values in a codable format, allowing them to be easily saved and loaded as part of the app settings.
 struct CodablePoint: Codable {
     var x: CGFloat
     var y: CGFloat
@@ -847,6 +1068,7 @@ struct CodablePoint: Codable {
     var nsPoint: NSPoint { NSPoint(x: x, y: y) }
 }
 
+/// A struct used for encoding and decoding `NSSize` values in the `AppSettingsCodable` struct. Since `NSSize` does not conform to `Codable`, this struct provides a way to represent size values in a codable format, allowing them to be easily saved and loaded as part of the app settings.
 struct CodableSize: Codable {
     var width: CGFloat
     var height: CGFloat
@@ -859,6 +1081,7 @@ struct CodableSize: Codable {
     var nsSize: NSSize { NSSize(width: width, height: height) }
 }
 
+/// A private struct used for encoding and decoding the `AppSettings` properties to and from JSON. This struct conforms to `Codable` and contains properties that mirror the settings in `AppSettings`, allowing for easy serialization and deserialization of the app settings when saving to or loading from a file.
 private struct AppSettingsCodable: Codable {
     var restartedFromPermissionScreen: Bool
     var keyboardHotkey: KeyboardHotkeyManager.Shortcut
