@@ -8,33 +8,46 @@
 import AppKit
 import ApplicationServices
 
-final class KeyboardHotkeyManager {
-    struct Shortcut: Equatable {
-        let key: String
-        let modifiers: NSEvent.ModifierFlags
-
-        var displayText: String {
-            var parts: [String] = []
-            if modifiers.contains(.control) { parts.append("Ctrl") }
-            if modifiers.contains(.option) { parts.append("Option") }
-            if modifiers.contains(.command) { parts.append("Command") }
-            if modifiers.contains(.shift) { parts.append("Shift") }
-
-            switch key {
-            case " ": parts.append("Space")
-            case "\r": parts.append("Return")
-            default: parts.append(key.uppercased())
-            }
-            return parts.joined(separator: " + ")
+/// A struct that represents a keyboard shortcut consisting of a key and its associated modifier flags.
+struct Shortcut: Equatable {
+    let key: String
+    let modifiers: NSEvent.ModifierFlags
+    
+    var displayText: String {
+        var parts: [String] = []
+        if modifiers.contains(.control) { parts.append("Ctrl") }
+        if modifiers.contains(.option) { parts.append("Option") }
+        if modifiers.contains(.command) { parts.append("Command") }
+        if modifiers.contains(.shift) { parts.append("Shift") }
+        
+        switch key {
+        case " ": parts.append("Space")
+        case "\r": parts.append("Return")
+        default: parts.append(key.uppercased())
         }
+        return parts.joined(separator: " + ")
     }
+}
 
+/// `KeyboardHotkeyManager` is responsible for monitoring global keyboard events to trigger a specified action.
+/// - Note: To function correctly, the host application must have the necessary Accessibility permissions
+///   granted by the system.
+final class KeyboardHotkeyManager {
+    /// Closure that gets called when the configured shortcut is activated.
     var onToggle: (() -> Void)?
     var shortcut: Shortcut?
 
+    /// Internal state for managing the event tap and run loop source.
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-
+    
+    deinit {
+        stop()
+    }
+    
+    /// Starts monitoring for the configured shortcut.
+    /// This method sets up a `CGEventTap` and registers it with the current `CFRunLoop`.
+    /// If the event tap fails to create (e.g., due to missing permissions), it will log a warning and stop.
     func start() {
         stop()
 
@@ -46,6 +59,8 @@ final class KeyboardHotkeyManager {
         stop()
     }
 
+    /// Stops monitoring for the shortcut and releases system resources.
+    /// This removes the event tap from the `CFRunLoop` and disables it.
     func stop() {
 
         if let eventTap {
@@ -57,11 +72,10 @@ final class KeyboardHotkeyManager {
             self.runLoopSource = nil
         }
     }
-
-    deinit {
-        stop()
-    }
-
+    
+    /// Checks if a given `NSEvent` matches the configured shortcut for toggling.
+    /// - Parameter event: The keyboard event to check against the configured shortcut.
+    /// - Returns: A boolean indicating whether the event matches the shortcut.
     private func matchesToggleShortcut(_ event: NSEvent) -> Bool {
         guard let shortcut else { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -69,6 +83,9 @@ final class KeyboardHotkeyManager {
         return event.charactersIgnoringModifiers?.lowercased() == shortcut.key
     }
 
+    /// Parses an `NSEvent` to construct a `Shortcut` instance if possible.
+    /// - Parameter event: The `NSEvent` to extract shortcut information from.
+    /// - Returns: A `Shortcut` object if the event contains valid key and modifier information, otherwise `nil`.
     static func shortcut(from event: NSEvent) -> Shortcut? {
         guard let rawKey = event.charactersIgnoringModifiers?.lowercased(), !rawKey.isEmpty else { return nil }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -85,7 +102,9 @@ final class KeyboardHotkeyManager {
 
         return Shortcut(key: mappedKey, modifiers: flags)
     }
-
+    
+    /// Installs a global event tap to monitor for keyboard events.
+    /// - Returns: A boolean indicating whether the event tap was successfully created and installed.
     private func installEventTap() -> Bool {
         // Requires Accessibility to modify/swallow events; otherwise tap creation fails.
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
@@ -108,7 +127,8 @@ final class KeyboardHotkeyManager {
         self.runLoopSource = source
         return true
     }
-
+    
+    /// The callback function for the event tap, which processes incoming keyboard events.
     private static let eventTapCallback: CGEventTapCallBack = { proxy, type, cgEvent, refcon in
         // Pass through non-key events
         guard type == .keyDown else {
@@ -121,13 +141,13 @@ final class KeyboardHotkeyManager {
 
         let manager = Unmanaged<KeyboardHotkeyManager>.fromOpaque(refcon).takeUnretainedValue()
 
-        // Convert to NSEvent to reuse existing shortcut matching logic
+        /// Convert to NSEvent to reuse existing shortcut matching logic
         guard let nsEvent = NSEvent(cgEvent: cgEvent) else {
             return Unmanaged.passUnretained(cgEvent)
         }
 
         if manager.matchesToggleShortcut(nsEvent) {
-            // Toggle on the main thread and swallow the event so the front app doesn't also handle it
+            /// Toggle on the main thread and swallow the event so the front app doesn't also handle it
             DispatchQueue.main.async {
                 manager.onToggle?()
             }

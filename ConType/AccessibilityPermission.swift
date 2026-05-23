@@ -13,7 +13,7 @@ import CoreGraphics
 /// Uses CoreGraphics APIs to check and request permission.
 public enum InputMonitoringPermission {
     /// Checks if the app is authorized for Input Monitoring.
-    /// - Returns: Boolean, true if authorized, false otherwise.
+    /// - Returns: true if authorized, false otherwise.
     @MainActor
     public static func isAuthorized() -> Bool {
         CGPreflightPostEventAccess() || CGPreflightListenEventAccess()

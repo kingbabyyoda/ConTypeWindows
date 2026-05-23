@@ -582,7 +582,7 @@ enum WindowSize: String, CaseIterable, Identifiable {
         }
     }
     
-    /// A Boolean value indicating whether the window size is set to custom.
+    /// A boolean value indicating whether the window size is set to custom.
     var isCustom: Bool {
         self == .custom
     }
@@ -681,7 +681,7 @@ final class AppSettings: ObservableObject {
     
     // MARK: - Bindings
     /// The keyboard shortcut used to toggle the keyboard overlay. By default, it is set to Command + K.
-    @Published var keyboardHotkey = KeyboardHotkeyManager.Shortcut(key: "k", modifiers: [.command])
+    @Published var keyboardHotkey = Shortcut(key: "k", modifiers: [.command])
     
     /// The controller button bindings for toggling the keyboard overlay and mouse mode, which can be customized by the user.
     @Published var controllerToggleBindings: ControllerToggleBindings = .default
@@ -691,10 +691,10 @@ final class AppSettings: ObservableObject {
     
     
     // MARK: - Preferences
-    /// A Boolean value indicating whether mouse input is enabled while the keyboard overlay is active.
+    /// A boolean value indicating whether mouse input is enabled while the keyboard overlay is active.
     @Published var enableMouseInKeyboard: Bool = true
     
-    /// A Boolean value indicating whether mouse input should be prioritized over keyboard input when both are enabled.
+    /// A boolean value indicating whether mouse input should be prioritized over keyboard input when both are enabled.
     @Published var prioritizeMouseOverKeyboard: Bool = false
     
     /// The layout of the keyboard to be used in the overlay, which can affect how certain keys are displayed and mapped.
@@ -709,13 +709,13 @@ final class AppSettings: ObservableObject {
     /// The axis action assigned to the D-pad.
     @Published var padInputType: [AxisActionType] = [.overlayMovement]
     
-    /// A Boolean value indicating whether the Shift action binding should toggle between Shift, Caps Lock and Regular. If false, the Shift action binding will only toggle the Shift key.
+    /// A boolean value indicating whether the Shift action binding should toggle between Shift, Caps Lock and Regular. If false, the Shift action binding will only toggle the Shift key.
     @Published var shiftShortcutCyclesToCapsLock = true
     
-    /// A Boolean value indicating whether the keyboard overlay can be dismissed by pressing the guide button alone.
+    /// A boolean value indicating whether the keyboard overlay can be dismissed by pressing the guide button alone.
     @Published var dismissWithGuideButton = true
     
-    /// A Boolean value indicating whether the app should open automatically on startup.
+    /// A boolean value indicating whether the app should open automatically on startup.
     @Published var openAppOnStartup = false
     
     /// The movement style for the keyboard overlay when controlled by the controller.
@@ -733,30 +733,30 @@ final class AppSettings: ObservableObject {
     /// The smoothing alpha value for mouse movement.
     @Published var mouseSmoothing: CGFloat = 0.4
     
-    /// A Boolean value indicating whether the X-axis mouse movement is inverted.
+    /// A boolean value indicating whether the X-axis mouse movement is inverted.
     @Published var invertMouseX: Bool = false
     
-    /// A Boolean value indicating whether the Y-axis mouse movement is inverted.
+    /// A boolean value indicating whether the Y-axis mouse movement is inverted.
     @Published var invertMouseY: Bool = false
     
     /// The distance the mouse scrolls in response to controller input.
     @Published var scrollSpeed: CGFloat = 300.0
     
-    /// A Boolean value indicating whether the X-axis mouse scroll is inverted.
+    /// A boolean value indicating whether the X-axis mouse scroll is inverted.
     @Published var invertScrollX: Bool = false
     
-    /// A Boolean value indicating whether the Y-axis mouse scroll is inverted.
+    /// A boolean value indicating whether the Y-axis mouse scroll is inverted.
     @Published var invertScrollY: Bool = false
     
-    /// A Boolean value indicating whether haptic feedback is enabled for controller input.
+    /// A boolean value indicating whether haptic feedback is enabled for controller input.
     @Published var enableHaptics: Bool = true
     
     
     // MARK: - Overlay
-    /// A Boolean value indicating wether the app is in the mouse overlay.
+    /// A boolean value indicating wether the app is in the mouse overlay.
     @Published var inMouseMode: Bool = false
     
-    /// A Boolean value indicating whether the guide bar is shown on the keyboard overlay.
+    /// A boolean value indicating whether the guide bar is shown on the keyboard overlay.
     @Published var showGuideBar: Bool = true
     
     /// The preset window size for the keyboard overlay.
@@ -934,13 +934,13 @@ final class AppSettings: ObservableObject {
     /// - Parameter onlyHotkeys: Wether to only restore hotkey and controller bindings defaults, or to restore all defaults including preferences and overlay settings.
     func restoreDefaults(onlyHotkeys: Bool) {
         if onlyHotkeys {
-            self.keyboardHotkey = KeyboardHotkeyManager.Shortcut(key: "k", modifiers: [.command])
+            self.keyboardHotkey = Shortcut(key: "k", modifiers: [.command])
             self.controllerToggleBindings = .default
             self.controllerActionBindings = .default
             return
         } else {
             self.restartedFromPermissionScreen = false
-            self.keyboardHotkey = KeyboardHotkeyManager.Shortcut(key: "k", modifiers: [.command])
+            self.keyboardHotkey = Shortcut(key: "k", modifiers: [.command])
             self.controllerToggleBindings = .default
             self.controllerActionBindings = .default
             self.enableMouseInKeyboard = true
@@ -974,7 +974,7 @@ final class AppSettings: ObservableObject {
 }
 
 // MARK: - Codable helpers
-extension KeyboardHotkeyManager.Shortcut: Codable {
+extension Shortcut: Codable {
     enum CodingKeys: String, CodingKey {
         case key
         case modifiers
@@ -1084,7 +1084,7 @@ struct CodableSize: Codable {
 /// A private struct used for encoding and decoding the `AppSettings` properties to and from JSON. This struct conforms to `Codable` and contains properties that mirror the settings in `AppSettings`, allowing for easy serialization and deserialization of the app settings when saving to or loading from a file.
 private struct AppSettingsCodable: Codable {
     var restartedFromPermissionScreen: Bool
-    var keyboardHotkey: KeyboardHotkeyManager.Shortcut
+    var keyboardHotkey: Shortcut
     var controllerToggleBindings: ControllerToggleBindings
     var controllerActionBindings: ControllerActionBindings
     var enableMouseInKeyboard: Bool

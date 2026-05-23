@@ -59,7 +59,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var activeAxisInputPicker: AxisInput?
     
     @Published var isRecordingKeyboardHotkey = false
-    @Published var keyboardPreviewShortcut: KeyboardHotkeyManager.Shortcut?
+    @Published var keyboardPreviewShortcut: Shortcut?
     @Published var keyboardPressedModifiers: NSEvent.ModifierFlags = []
     
     @Published var isRecordingControllerHotkey = false
@@ -83,7 +83,7 @@ final class SettingsViewModel: ObservableObject {
     // Constants
     let waitingKeyboardText = "Waiting for keyboard input..."
     let waitingControllerText = "Waiting for controller input..."
-    let defaultKeyboardShortcut = KeyboardHotkeyManager.Shortcut(key: "k", modifiers: [.command])
+    let defaultKeyboardShortcut = Shortcut(key: "k", modifiers: [.command])
     let twoDecimalFormatter = Decimal.FormatStyle().precision(.fractionLength(2))
     
     init(
