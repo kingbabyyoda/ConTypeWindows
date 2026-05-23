@@ -26,7 +26,7 @@ enum MovementMode {
 private struct AnalogInputState {
     var filteredStick = CGVector(dx: 0, dy: 0)
     var lastDirection: OverlayMoveDirection? = nil
-    var lastInputType: AxisInputType? = nil
+    var lastInputType: AxisActionType? = nil
 }
 
 // ObservableObject for SwiftUI to observe joystick input
@@ -114,21 +114,21 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    var leftStickInputType: [AxisInputType] = [.overlayMovement] {
+    var leftStickInputType: [AxisActionType] = [.overlayMovement] {
         didSet {
             rebindSticksIfNeeded()
             resetAnalogStateForContextChange()
         }
     }
     
-    var rightStickInputType: [AxisInputType] = [.mouseMovement] {
+    var rightStickInputType: [AxisActionType] = [.mouseMovement] {
         didSet {
             rebindSticksIfNeeded()
             resetAnalogStateForContextChange()
         }
     }
     
-    var padInputType: [AxisInputType] = [.overlayMovement] {
+    var padInputType: [AxisActionType] = [.overlayMovement] {
         didSet {
             rebindSticksIfNeeded()
             resetAnalogStateForContextChange()
@@ -636,10 +636,10 @@ final class ControllerInputManager: NSObject {
     //    }
     
     // MARK: - Analog Stick Handling
-    private func bindAnalogStick(_ stick: GCControllerDirectionPad, from source: MovementMode, inputType: [AxisInputType]) {
+    private func bindAnalogStick(_ stick: GCControllerDirectionPad, from source: MovementMode, inputType: [AxisActionType]) {
         stick.valueChangedHandler = nil // Clear any existing handler to avoid conflicts when re-binding
         
-        let normalizedInputTypes = normalizedAxisInputTypes(from: inputType)
+        let normalizedInputTypes = normalizedAxisActionTypes(from: inputType)
         if normalizedInputTypes.isEmpty {
             return
         }
@@ -650,7 +650,7 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    private func handleAnalogStick(x: Float, y: Float, from source: MovementMode, inputTypes: [AxisInputType]) {
+    private func handleAnalogStick(x: Float, y: Float, from source: MovementMode, inputTypes: [AxisActionType]) {
         let raw = CGVector(dx: CGFloat(x), dy: CGFloat(y))
         let rawMagnitude = sqrt(raw.dx * raw.dx + raw.dy * raw.dy)
         let joystickDeadzone = switch source {
@@ -672,7 +672,7 @@ final class ControllerInputManager: NSObject {
         // Get per-source state
         guard var state = analogStates[source] else { return }
         
-        guard let activeInputType = resolvedAxisInputType(from: inputTypes) else {
+        guard let activeInputType = resolvedAxisActionType(from: inputTypes) else {
             resetAnalogStateForContextChange()
             return
         }
@@ -805,7 +805,7 @@ final class ControllerInputManager: NSObject {
     }
     
     private func analogTimerFired(from source: MovementMode) {
-        let inputType = resolvedAxisInputType(from: inputTypes(for: source))
+        let inputType = resolvedAxisActionType(from: inputTypes(for: source))
         guard (inputType == .mouseMovement) || (inputType == .scrollWheel) else {
             stopAnalogTimerIfNeeded(for: source)
             return
@@ -959,7 +959,7 @@ final class ControllerInputManager: NSObject {
         isGuideHeld || Date().timeIntervalSince(lastGuidePressDate) < guideChordWindow
     }
     
-    private func setDirectionalInput(_ direction: OverlayMoveDirection, pressed: Bool, for mode: AxisInputType) {
+    private func setDirectionalInput(_ direction: OverlayMoveDirection, pressed: Bool, for mode: AxisActionType) {
         if pressed {
             if mode == .overlayMovement {
                 let currentCount = directionPressCounts[direction, default: 0] + 1
@@ -1020,19 +1020,19 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    private func normalizedAxisInputTypes(from inputTypes: [AxisInputType]) -> [AxisInputType] {
-        var seen = Set<AxisInputType>()
+    private func normalizedAxisActionTypes(from inputTypes: [AxisActionType]) -> [AxisActionType] {
+        var seen = Set<AxisActionType>()
         return inputTypes
             .filter { $0 != .none }
             .filter { seen.insert($0).inserted }
     }
     
-    private func resolvedAxisInputType(from inputTypes: [AxisInputType]) -> AxisInputType? {
-        let normalized = normalizedAxisInputTypes(from: inputTypes)
+    private func resolvedAxisActionType(from inputTypes: [AxisActionType]) -> AxisActionType? {
+        let normalized = normalizedAxisActionTypes(from: inputTypes)
         guard !normalized.isEmpty else { return nil }
         
-        let mouseType = preferredMouseAxisInputType(from: normalized)
-        let keyboardType = preferredKeyboardAxisInputType(from: normalized)
+        let mouseType = preferredMouseAxisActionType(from: normalized)
+        let keyboardType = preferredKeyboardAxisActionType(from: normalized)
         
         if isMouseOverlayVisible {
             return mouseType != nil ? mouseType : keyboardType
@@ -1052,7 +1052,7 @@ final class ControllerInputManager: NSObject {
         return keyboardType
     }
     
-    private func preferredMouseAxisInputType(from inputTypes: [AxisInputType]) -> AxisInputType? {
+    private func preferredMouseAxisActionType(from inputTypes: [AxisActionType]) -> AxisActionType? {
         if inputTypes.contains(.mouseMovement) {
             return .mouseMovement
         }
@@ -1062,7 +1062,7 @@ final class ControllerInputManager: NSObject {
         return nil
     }
     
-    private func preferredKeyboardAxisInputType(from inputTypes: [AxisInputType]) -> AxisInputType? {
+    private func preferredKeyboardAxisActionType(from inputTypes: [AxisActionType]) -> AxisActionType? {
         if inputTypes.contains(.overlayMovement) {
             return .overlayMovement
         }
@@ -1072,7 +1072,7 @@ final class ControllerInputManager: NSObject {
         return nil
     }
     
-    private func inputTypes(for source: MovementMode) -> [AxisInputType] {
+    private func inputTypes(for source: MovementMode) -> [AxisActionType] {
         switch source {
         case .leftStick:
             return leftStickInputType
@@ -1107,7 +1107,7 @@ final class ControllerInputManager: NSObject {
     
     // MARK: - Input Handling
     // MARK: Movement Handling
-    private func beginHeldMovement(in direction: OverlayMoveDirection, for mode: AxisInputType = .overlayMovement) {
+    private func beginHeldMovement(in direction: OverlayMoveDirection, for mode: AxisActionType = .overlayMovement) {
         stopMoveRepeat(clearDirection: false, for: mode)
         
         if mode == .overlayMovement {
@@ -1123,7 +1123,7 @@ final class ControllerInputManager: NSObject {
         scheduleMoveRepeat(after: holdRepeatInitialDelay ?? padHoldRepeatInitialDelay, for: mode)
     }
     
-    private func scheduleMoveRepeat(after delay: TimeInterval, for mode: AxisInputType = .overlayMovement) {
+    private func scheduleMoveRepeat(after delay: TimeInterval, for mode: AxisActionType = .overlayMovement) {
         if mode == .overlayMovement {
             guard activeMoveDirection != nil else { return }
             
@@ -1143,7 +1143,7 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    private func performMoveRepeat(_ mode: AxisInputType) {
+    private func performMoveRepeat(_ mode: AxisActionType) {
         var acceleratedInterval: TimeInterval = 0
         
         if mode == .overlayMovement {
@@ -1181,7 +1181,7 @@ final class ControllerInputManager: NSObject {
         scheduleMoveRepeat(after: acceleratedInterval, for: mode)
     }
     
-    private func stopMoveRepeat(clearDirection: Bool, for mode: AxisInputType) {
+    private func stopMoveRepeat(clearDirection: Bool, for mode: AxisActionType) {
         if mode == .overlayMovement {
             holdRepeatWorkItem?.cancel()
             holdRepeatWorkItem = nil

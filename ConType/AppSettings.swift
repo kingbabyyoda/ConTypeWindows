@@ -38,7 +38,7 @@ enum AxisInput: String, Identifiable {
 /// - Arrow Keys
 /// - Scroll Wheel
 /// - None
-enum AxisInputType: String, CaseIterable, Identifiable, Hashable {
+enum AxisActionType: String, CaseIterable, Identifiable, Hashable {
     case none
     case overlayMovement
     case mouseMovement
@@ -46,10 +46,10 @@ enum AxisInputType: String, CaseIterable, Identifiable, Hashable {
     case scrollWheel
     
     /// The keyboard axis actions
-    static let keyboardOptions: [AxisInputType] = [.none, .overlayMovement, .arrowKeys]
+    static let keyboardOptions: [AxisActionType] = [.none, .overlayMovement, .arrowKeys]
     
     /// The mouse axis actions
-    static let mouseOptions: [AxisInputType] = [.none, .mouseMovement, .scrollWheel]
+    static let mouseOptions: [AxisActionType] = [.none, .mouseMovement, .scrollWheel]
     
     /// Axis action identifier
     var id: String { rawValue }
@@ -701,13 +701,13 @@ final class AppSettings: ObservableObject {
     @Published var keyboardLayout: KeyboardLayout = .QWERTY
     
     /// The axis action assigned to the left stick.
-    @Published var leftStickInputType: [AxisInputType] = [.overlayMovement, .scrollWheel]
+    @Published var leftStickInputType: [AxisActionType] = [.overlayMovement, .scrollWheel]
     
     /// The axis action assigned to the right stick.
-    @Published var rightStickInputType: [AxisInputType] = [.mouseMovement]
+    @Published var rightStickInputType: [AxisActionType] = [.mouseMovement]
     
     /// The axis action assigned to the D-pad.
-    @Published var padInputType: [AxisInputType] = [.overlayMovement]
+    @Published var padInputType: [AxisActionType] = [.overlayMovement]
     
     /// A Boolean value indicating whether the Shift action binding should toggle between Shift, Caps Lock and Regular. If false, the Shift action binding will only toggle the Shift key.
     @Published var shiftShortcutCyclesToCapsLock = true
@@ -1004,7 +1004,7 @@ extension ControllerAssignableButton: Codable {}
 
 extension ControllerActionBinding: Codable {}
 
-extension AxisInputType: Codable {}
+extension AxisActionType: Codable {}
 
 extension WindowSize: Codable {
     enum CodingKeys: String, CodingKey {
@@ -1090,9 +1090,9 @@ private struct AppSettingsCodable: Codable {
     var enableMouseInKeyboard: Bool
     var prioritizeMouseOverKeyboard: Bool
     var keyboardLayoutName: String
-    var leftStickInputType: [AxisInputType]
-    var rightStickInputType: [AxisInputType]
-    var padInputType: [AxisInputType]
+    var leftStickInputType: [AxisActionType]
+    var rightStickInputType: [AxisActionType]
+    var padInputType: [AxisActionType]
     var shiftShortcutCyclesToCapsLock: Bool
     var dismissWithGuideButton: Bool
     var openAppOnStartup: Bool

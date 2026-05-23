@@ -320,9 +320,9 @@ final class SettingsViewModel: ObservableObject {
     }
     
     // MARK: - Utilities
-    func setAxisInputType(_ inputType: AxisInputType, fromKeyboard: Bool, for axisInput: AxisInput) {
+    func setAxisActionType(_ inputType: AxisActionType, fromKeyboard: Bool, for axisInput: AxisInput) {
         // Get current input types for the axis
-        let currentInputTypes: [AxisInputType]
+        let currentInputTypes: [AxisActionType]
         switch axisInput {
         case .leftStick:
             currentInputTypes = settings.leftStickInputType
@@ -484,7 +484,7 @@ final class SettingsViewModel: ObservableObject {
     }
     
     func axisInputPickerButton(for input: AxisInput, forKeyboard: Bool) -> some View {
-        let selected = selectedAxisInputType(for: input, forKeyboard: forKeyboard)
+        let selected = selectedAxisActionType(for: input, forKeyboard: forKeyboard)
         let conflictStatus = warnAxisInputConflict(for: input, fromKeyboard: forKeyboard)
         
         return Button { [self] in
@@ -519,8 +519,8 @@ final class SettingsViewModel: ObservableObject {
     }
     
     // Helpers for axis input picker
-    private func selectedAxisInputType(for input: AxisInput, forKeyboard: Bool) -> AxisInputType {
-        let current: [AxisInputType]
+    private func selectedAxisActionType(for input: AxisInput, forKeyboard: Bool) -> AxisActionType {
+        let current: [AxisActionType]
         switch input {
         case .leftStick: current = settings.leftStickInputType
         case .rightStick: current = settings.rightStickInputType
@@ -567,7 +567,7 @@ final class SettingsViewModel: ObservableObject {
     }
     
     @ViewBuilder
-    private func axisInputPickerPopOver(for input: AxisInput, selected: AxisInputType, forKeyboard: Bool) -> some View {
+    private func axisInputPickerPopOver(for input: AxisInput, selected: AxisActionType, forKeyboard: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Choose Input")
                 .font(.headline)
@@ -576,13 +576,13 @@ final class SettingsViewModel: ObservableObject {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             
-            let options = forKeyboard ? AxisInputType.keyboardOptions : AxisInputType.mouseOptions
+            let options = forKeyboard ? AxisActionType.keyboardOptions : AxisActionType.mouseOptions
             
             ForEach(options) { [self] type in
                 let isSelected = type == selected
                 
                 Button {
-                    self.setAxisInputType(type, fromKeyboard: forKeyboard, for: input)
+                    self.setAxisActionType(type, fromKeyboard: forKeyboard, for: input)
                 } label: {
                     HStack {
                         Text(type.title)
