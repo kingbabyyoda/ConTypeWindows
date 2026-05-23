@@ -1,5 +1,5 @@
 //
-//  AppSettings.swift
+//  ControllerInputManager.swift
 //  ConType
 //
 //  Created by Ethan John Lagera on 4/14/26.
@@ -10,31 +10,30 @@ import GameController
 import Combine
 import CoreHaptics
 
+/// An enum representing the type of input for an axis (stick or d-pad).
+/// Contains:
+/// - Limited (4 Directional)
+/// - Full (8 Directional)
+/// - Mouse (Analog movement with filtering and deadzone)
 enum KeyboardMovementMode {
-    case limited    // 4 Directional
-    case full       // 8 Directional
-    case mouse      // Similar to full but with different handling
+    case limited
+    case full
+    case mouse
 }
 
-enum MovementMode {
-    case dpad
-    case leftStick
-    case rightStick
-}
-
-// Per-source analog input state
-private struct AnalogInputState {
+/// A struct containing the internal state for an analog input source. Utilized as a unified state containing the input state of each axis input
+private struct AxisInputState {
     var filteredStick = CGVector(dx: 0, dy: 0)
     var lastDirection: OverlayMoveDirection? = nil
     var lastInputType: AxisActionType? = nil
 }
 
-// ObservableObject for SwiftUI to observe joystick input
+/// The main model class responsible for managing controller input, processing it according to user settings, and exposing it for SwiftUI views.
 @MainActor
 final class JoystickInputModel: ObservableObject {
     @Published var leftStick: CGVector = .zero
     @Published var rightStick: CGVector = .zero
-    @Published var dPad: CGVector = .zero
+    @Published var pad: CGVector = .zero
     
     init(manager: ControllerInputManager) {
         // Subscribe to stick changes
@@ -48,18 +47,20 @@ final class JoystickInputModel: ObservableObject {
                 self?.rightStick = vector
             }
         }
-        manager.onDPadChanged = { [weak self] vector in
+        manager.onPadChanged = { [weak self] vector in
             DispatchQueue.main.async {
-                self?.dPad = vector
+                self?.pad = vector
             }
         }
     }
 }
 
+/// The primary class responsible for interfacing with GCController, handling input events, applying user-configured settings, and exposing high-level input actions through closures. This class manages the lifecycle of controller connections, haptics, and input processing logic.
 final class ControllerInputManager: NSObject {
+    // MARK: - Closures for input events and state changes
     var onLeftStickChanged: ((CGVector) -> Void)?
     var onRightStickChanged: ((CGVector) -> Void)?
-    var onDPadChanged: ((CGVector) -> Void)?
+    var onPadChanged: ((CGVector) -> Void)?
     var onToggleKeyboard: (() -> Void)?
     var onToggleMouse: (() -> Void)?
     var onMove: ((OverlayMoveDirection, OverlayMoveTrigger) -> Void)?
@@ -82,10 +83,12 @@ final class ControllerInputManager: NSObject {
     var onDetectedControllerChanged: ((DetectedController?) -> Void)?
     var onDismissWithGuideButton: (() -> Void)?
     
+    // MARK: - Configuration state
     var isToggleEnabled = true
     var toggleBindings: ControllerToggleBindings = .default
     var actionBindings: ControllerActionBindings = .default
     
+    // MARK: - Settings with special handling
     var enableMouseInKeyboard = true {
         didSet {
             guard enableMouseInKeyboard != oldValue else { return }
@@ -135,6 +138,7 @@ final class ControllerInputManager: NSObject {
         }
     }
     
+    // MARK: - User preferences
     var dismissWithGuideButton = true
     var isOverlayVisible = false
     var keyboardMovementStyle: KeyboardMovementMode = .limited
@@ -149,29 +153,29 @@ final class ControllerInputManager: NSObject {
     var invertScrollY: Bool = false
     var enableHaptics = true
 
+    // MARK: - State for haptics management
     private var controllerHapticsEngine: CHHapticEngine?
     private var controllerHapticsControllerID: ObjectIdentifier?
     private var controllerHapticsLocality: GCHapticsLocality?
     
-    private var isGuideHeld = false {
-        didSet { publishCaptureState() }
-    }
-    private var pressedAssignableButtons: Set<ControllerAssignableButton> = [] {
-        didSet { publishCaptureState() }
-    }
+    // MARK: - State for input capture and chord detection
+    private var isGuideHeld = false { didSet { publishCaptureState() } }
+    private var pressedAssignableButtons: Set<ControllerAssignableButton> = [] { didSet { publishCaptureState() } }
     private var lastGuidePressDate = Date.distantPast
     private let guideChordWindow: TimeInterval = 0.7
     
+    // MARK: - Pending capture handlers
     private var pendingToggleCapture: ((ControllerAssignableButton) -> Void)?
     private var pendingAssignableButtonCapture: ((ControllerAssignableButton) -> Void)?
     
+    // MARK: - Movement repeat handling
     private var directionPressCounts: [OverlayMoveDirection: Int] = [:]
     private var heldDirectionOrder: [OverlayMoveDirection] = []
     private var activeMoveDirection: OverlayMoveDirection?
     private var holdRepeatStep = 0
     private var holdRepeatWorkItem: DispatchWorkItem?
     
-    // Arrow key emulation
+    // MARK: - Arrow key emulation
     private let keyEmitter = KeyEmitter()
     private var arrowDirectionPressCounts: [OverlayMoveDirection: Int] = [:]
     private var heldArrowDirectionOrder: [OverlayMoveDirection] = []
@@ -179,47 +183,47 @@ final class ControllerInputManager: NSObject {
     private var arrowHoldRepeatStep = 0
     private var arrowHoldRepeatWorkItem: DispatchWorkItem?
     
-    // Internal state for analog handling (per-source)
-    private var analogStates: [MovementMode: AnalogInputState] = [
-        .leftStick: AnalogInputState(),
-        .rightStick: AnalogInputState(),
-        .dpad: AnalogInputState()
+    // MARK: - Internal state for analog handling (per-source)
+    private var analogStates: [AxisInput: AxisInputState] = [
+        .leftStick: AxisInputState(),
+        .rightStick: AxisInputState(),
+        .pad: AxisInputState()
     ]
-    private var analogTimers: [MovementMode: Timer?] = [
+    private var analogTimers: [AxisInput: Timer?] = [
         .leftStick: nil,
         .rightStick: nil,
-        .dpad: nil
+        .pad: nil
     ]
-    private var lastAnalogUpdates: [MovementMode: Date] = [
+    private var lastAnalogUpdates: [AxisInput: Date] = [
         .leftStick: Date.distantPast,
         .rightStick: Date.distantPast,
-        .dpad: Date.distantPast
+        .pad: Date.distantPast
     ]
     
-    // Variables for handling input debounce (per-source)
-    private var lastDirectionChangeDates: [MovementMode: Date] = [
+    // MARK: - Variables for handling input debounce (per-source)
+    private var lastDirectionChangeDates: [AxisInput: Date] = [
         .leftStick: Date.distantPast,
         .rightStick: Date.distantPast,
-        .dpad: Date.distantPast
+        .pad: Date.distantPast
     ]
     private let directionDebounceInterval: TimeInterval = 0.1
     
-    // Variables for dpad hold repeat behavior
+    // MARK: - Variables for pad hold repeat behavior
     private let padHoldRepeatInitialDelay: TimeInterval = 0.28
     private let padHoldRepeatInitialInterval: TimeInterval = 0.22
     private let padHoldRepeatMinimumInterval: TimeInterval = 0.055
     private let padHoldRepeatAcceleration: Double = 0.84
     
-    // Variables for discrete stick hold repeat behavior
+    // MARK: - Variables for stick hold repeat behavior
     private var stickHoldRepeatInitialDelay: TimeInterval = 0.28
     private var stickHoldRepeatInitialInterval: TimeInterval = 0.30
     private var stickHoldRepeatMinimumInterval: TimeInterval = 0.08
     private var stickHoldRepeatAcceleration: Double = 0.9
     
-    // Variables for mouse mode
+    // MARK: - Variables for mouse mode
     private var joystickTickInterval: TimeInterval = 1.0 / 60.0
     
-    // Augmented hold repeat variables
+    // MARK: - Augmented hold repeat variables
     private var holdRepeatInitialDelay: TimeInterval?
     private var holdRepeatInitialInterval: TimeInterval?
     private var holdRepeatMinimumInterval: TimeInterval?
@@ -231,19 +235,25 @@ final class ControllerInputManager: NSObject {
     private func debugLog(_ message: String) {}
 #endif
     
+    /// Captures the next button press for a toggle binding. The provided closure will be called with the captured button. Only one pending capture is allowed at a time; subsequent calls will overwrite the pending capture.
+    /// - Parameter onCaptured: A closure that will be called with the captured `ControllerAssignableButton` when the next button press is detected.
     func captureNextToggleBinding(_ onCaptured: @escaping (ControllerAssignableButton) -> Void) {
         pendingToggleCapture = onCaptured
     }
     
+    /// Captures the next button press for an action binding. The provided closure will be called with the captured button. Only one pending capture is allowed at a time; subsequent calls will overwrite the pending capture.
+    /// - Parameter onCaptured: A closure that will be called with the captured `ControllerAssignableButton` when the next button press is detected.
     func captureNextAssignableButton(_ onCaptured: @escaping (ControllerAssignableButton) -> Void) {
         pendingAssignableButtonCapture = onCaptured
     }
     
+    /// Cancels any pending button capture operations for both toggle and action bindings. This will clear the pending capture closures.
     func cancelPendingCaptures() {
         pendingToggleCapture = nil
         pendingAssignableButtonCapture = nil
     }
     
+    /// Initializes the controller input manager, sets up notifications for controller connections, and configures any currently connected controllers.
     func start() {
         NotificationCenter.default.addObserver(
             self,
@@ -259,11 +269,11 @@ final class ControllerInputManager: NSObject {
             object: nil
         )
         
-        // Receive input while the app is in the background (menu bar / accessory / non-activating panel)
+        /// Receive input while the app is in the background (menu bar / accessory / non-activating panel)
         GCController.shouldMonitorBackgroundEvents = true
         debugLog("Background events monitoring enabled")
         
-        // Optionally discover wireless controllers proactively
+        /// Optionally discover wireless controllers proactively
         GCController.startWirelessControllerDiscovery(completionHandler: nil)
         debugLog("Started wireless controller discovery")
         
@@ -283,9 +293,9 @@ final class ControllerInputManager: NSObject {
     }
     
     //MARK: - Haptics Handling
+    /// Plays a rumble pattern on the connected controller if haptics are enabled and a compatible controller with haptic capabilities is available.
     func playRumbleIfSupported() {
         guard enableHaptics else {
-            debugLog("Haptics disabled; skipping move rumble")
             return
         }
         
@@ -294,14 +304,14 @@ final class ControllerInputManager: NSObject {
             return
         }
 
-        // Engines can auto-stop while idle; ensure it is running before playback
+        /// Engines can auto-stop while idle; ensure it is running before playback
         do {
             try engine.start()
         } catch {
             debugLog("Failed to start controller haptics engine: \(error)")
             invalidateControllerHapticsEngine()
             
-            // Attempt one retry with a fresh engine
+            /// Attempt one retry with a fresh engine
             guard let recreatedEngine = resolvedControllerHapticsEngine() else {
                 debugLog("Unable to recover haptics engine after failure")
                 return
@@ -316,7 +326,6 @@ final class ControllerInputManager: NSObject {
             return
         }
 
-        // Play the rumble pattern
         do {
             try playRumble(with: engine)
         } catch {
@@ -325,9 +334,12 @@ final class ControllerInputManager: NSObject {
     }
 
     /// Plays a transient haptic pattern suitable for movement/navigation feedback.
-    /// Uses intensity of 0.35 and sharpness of 0.45 for a subtle, responsive feel.
+    /// - Parameter engine: The `CHHapticEngine` instance to use for playback. Must be started before calling this method.
     private func playRumble(with engine: CHHapticEngine) throws {
         let events = [
+            /// A haptic event containing intensity and sharpness, with a duration of 0.1 seconds, starting immediately. This creates a short rumble effect on the controller.
+            /// A duration is required for the event to be played on game controllers, even for transient haptics.
+            /// 0.1 seconds is the lowest tested possible duration that produces a small rumble. Lower values produce unpredictable results.
             CHHapticEvent(
                 eventType: .hapticContinuous,
                 parameters: [
@@ -344,6 +356,9 @@ final class ControllerInputManager: NSObject {
         try player.start(atTime: CHHapticTimeImmediate)
     }
 
+    /// Resolves and returns a `CHHapticEngine` instance for the currently preferred connected controller with haptic capabilities.
+    /// Caches the engine for reuse and handles lifecycle management. Returns nil if no compatible controller or engine is available.
+    /// - Returns: An optional `CHHapticEngine` instance for the connected controller, or nil if unavailable.
     private func resolvedControllerHapticsEngine() -> CHHapticEngine? {
         let hapticsControllers = GCController.controllers().filter { $0.haptics != nil }
         
@@ -357,33 +372,33 @@ final class ControllerInputManager: NSObject {
             return nil
         }
 
-        // Check if we can reuse existing engine
+        /// Check if we can reuse existing engine
         let controllerID = ObjectIdentifier(controller)
         if let existingEngine = controllerHapticsEngine,
            controllerHapticsControllerID == controllerID {
             return existingEngine
         }
 
-        // Clean up any existing engine before creating a new one
+        /// Clean up any existing engine before creating a new one
         stopControllerHapticsEngine()
 
-        // Validate supported localities (GCDeviceHaptics.supportedLocalities must not be empty)
+        /// Validate supported localities (GCDeviceHaptics.supportedLocalities must not be empty)
         guard !haptics.supportedLocalities.isEmpty else {
             return nil
         }
 
-        // Select the optimal locality for haptics
+        /// Select the optimal locality for haptics
         let selectedLocality = selectOptimalHapticsLocality(from: haptics.supportedLocalities)
 
-        // Create the haptic engine with the selected locality
+        /// Create the haptic engine with the selected locality
         guard let engine = haptics.createEngine(withLocality: selectedLocality) else {
             return nil
         }
 
-        // Configure engine handlers for lifecycle management
+        /// Configure engine handlers for lifecycle management
         configureHapticsEngineHandlers(engine)
 
-        // Cache the engine and associated metadata
+        /// Cache the engine and associated metadata
         controllerHapticsEngine = engine
         controllerHapticsControllerID = controllerID
         controllerHapticsLocality = selectedLocality
@@ -391,9 +406,10 @@ final class ControllerInputManager: NSObject {
     }
     
     // MARK: - Haptics Engine Configuration
-    
-    /// Selects the optimal haptics locality from the supported options.
+    /// Selects the optimal haptics locality, the source of the vibration in the controller, from the supported options.
     /// Prefers `.default` if available, otherwise uses the first supported locality.
+    /// - Parameter supportedLocalities: The set of haptics localities supported by the controller.
+    /// - Returns: The selected `GCHapticsLocality` to use for the haptic engine.
     private func selectOptimalHapticsLocality(from supportedLocalities: Set<GCHapticsLocality>) -> GCHapticsLocality {
         if supportedLocalities.contains(.default) {
             return .default
@@ -402,6 +418,7 @@ final class ControllerInputManager: NSObject {
     }
     
     /// Configures reset and stopped handlers for the haptics engine to manage its lifecycle.
+    /// - Parameter engine: The `CHHapticEngine` instance to configure handlers for.
     private func configureHapticsEngineHandlers(_ engine: CHHapticEngine) {
         engine.resetHandler = { [weak self] in
             self?.debugLog("Controller haptics engine received reset signal")
@@ -415,6 +432,7 @@ final class ControllerInputManager: NSObject {
     }
     
     /// Handles engine reset by attempting to restart it.
+    /// - Parameter engine: The `CHHapticEngine` instance that received the reset signal.
     private func handleHapticsEngineReset(_ engine: CHHapticEngine) {
         do {
             try engine.start()
@@ -423,7 +441,8 @@ final class ControllerInputManager: NSObject {
             invalidateControllerHapticsEngine()
         }
     }
-
+    
+    /// Stops the haptics engine and clears cached references.
     private func stopControllerHapticsEngine() {
         if controllerHapticsEngine != nil {
             debugLog("Stopping and clearing cached controller haptics engine")
@@ -433,11 +452,15 @@ final class ControllerInputManager: NSObject {
         controllerHapticsLocality = nil
     }
 
+    /// Invalidates the current haptics engine. This stops the engine and clears cached references.
     private func invalidateControllerHapticsEngine() {
         stopControllerHapticsEngine()
         controllerHapticsControllerID = nil
     }
 
+    /// Gives a human-readable description of the `CHHapticEngine.StoppedReason`.
+    /// - Parameter reason: The `CHHapticEngine.StoppedReason` to describe.
+    /// - Returns: A string description of the stopped reason.
     private static func describeStoppedReason(_ reason: CHHapticEngine.StoppedReason) -> String {
         switch reason {
         case .audioSessionInterrupt:
@@ -460,16 +483,18 @@ final class ControllerInputManager: NSObject {
     }
     
     // MARK: - Controller Connection Handling
-    @objc
-    private func controllerDidConnect(_ notification: Notification) {
+    /// Configures a newly connected controller by setting up input handlers and refreshing the UI state.
+    /// - Parameter notification: The notification containing the connected controller object.
+    @objc private func controllerDidConnect(_ notification: Notification) {
         guard let controller = notification.object as? GCController else { return }
         debugLog("Controller connected: \(controller.vendorName ?? "Unknown")")
         configure(controller)
         refreshConnectedControllerGlyphStyle()
     }
     
-    @objc
-    private func controllerDidDisconnect(_ notification: Notification) {
+    /// Handles controller disconnection by invalidating haptics if necessary, resetting input state to avoid stale inputs, and refreshing the UI state.
+    /// - Parameter notification: The notification containing the disconnected controller object.
+    @objc private func controllerDidDisconnect(_ notification: Notification) {
         guard let controller = notification.object as? GCController else { return }
         debugLog("Controller disconnected: \(controller.vendorName ?? "Unknown")")
 
@@ -477,14 +502,14 @@ final class ControllerInputManager: NSObject {
             invalidateControllerHapticsEngine()
         }
         
-        // Avoid stale pressed state from a disconnected device.
+        /// Avoid stale pressed state from a disconnected device.
         isGuideHeld = false
         pressedAssignableButtons.removeAll()
         stopMoveRepeat(clearDirection: true, for: .overlayMovement)
         stopMoveRepeat(clearDirection: true, for: .arrowKeys)
         
-        // Reset all per-source analog states and timers
-        for mode in [MovementMode.leftStick, .rightStick, .dpad] {
+        /// Reset all per-source analog states and timers
+        for mode in [AxisInput.leftStick, .rightStick, .pad] {
             resetAnalogStateForSource(mode)
         }
         
@@ -492,16 +517,18 @@ final class ControllerInputManager: NSObject {
     }
     
     // MARK: - Controller Handling
+    /// Configures a connected controller by setting up input handlers based on its profile (extended or micro gamepad), and configuring fallback handlers for guide button presses on older systems.
+    /// - Parameter controller: The `GCController` instance to configure.
     private func configure(_ controller: GCController) {
         debugLog("Configuring controller: \(controller.vendorName ?? "Unknown")")
         
         if let gamepad = controller.extendedGamepad {
             configureExtendedGamepad(gamepad)
             configureThumbstickButtonPresses(from: controller)
-            // Fallback for very old systems where Menu/Home/Options aren't surfaced.
-            // `controllerPausedHandler` is deprecated on macOS 10.15+. Only use when necessary.
+            /// Fallback for very old systems where Menu/Home/Options aren't surfaced.
+            /// `controllerPausedHandler` is deprecated on macOS 10.15+. Only use when necessary.
             if #available(macOS 11.0, iOS 13.0, tvOS 13.0, *) {
-                // On modern systems we already handle Menu/Home/Options via the input profile; no paused handler needed.
+                /// On modern systems we already handle Menu/Home/Options via the input profile; no paused handler needed.
             } else {
                 controller.controllerPausedHandler = { [weak self] _ in
                     self?.dismissOverlayViaGuideIfNeeded()
@@ -514,10 +541,10 @@ final class ControllerInputManager: NSObject {
         
         if let microGamepad = controller.microGamepad {
             configureMicroGamepad(microGamepad)
-            // Fallback for very old systems where Menu/Home/Options aren't surfaced.
-            // `controllerPausedHandler` is deprecated on macOS 10.15+. Only use when necessary.
+            /// Fallback for very old systems where Menu/Home/Options aren't surfaced.
+            /// `controllerPausedHandler` is deprecated on macOS 10.15+. Only use when necessary.
             if #available(macOS 11.0, iOS 13.0, tvOS 13.0, *) {
-                // On modern systems we already handle Menu/Home/Options via the input profile; no paused handler needed.
+                /// On modern systems we already handle Menu/Home/Options via the input profile; no paused handler needed.
             } else {
                 controller.controllerPausedHandler = { [weak self] _ in
                     self?.dismissOverlayViaGuideIfNeeded()
@@ -528,8 +555,9 @@ final class ControllerInputManager: NSObject {
         }
     }
     
+    /// Configures input handlers for an extended gamepad profile, including assignable buttons, guide buttons, and analog sticks.
     private func configureExtendedGamepad(_ gamepad: GCExtendedGamepad) {
-        // Treat Home/Menu/Options as the "guide" modifier; also record moment of press for chorded detection.
+        /// Treat Home/Menu/Options as the "guide" modifier; also record moment of press for chorded detection.
         bindGuideButton(gamepad.buttonMenu, source: "Menu")
         bindGuideButton(gamepad.buttonHome, source: "Home")
         bindGuideButton(gamepad.buttonOptions, source: "Options")
@@ -547,22 +575,32 @@ final class ControllerInputManager: NSObject {
         bindSticks(gamepad)
     }
     
+    /// Configures handlers for a micro gamepad profile, which has a more limited set of inputs. Treats the d-pad as an analog stick and binds the available buttons as assignable inputs.
+    private func configureMicroGamepad(_ gamepad: GCMicroGamepad) {
+        bindAssignableButton(gamepad.buttonA, as: .south)
+        bindAssignableButton(gamepad.buttonX, as: .west)
+        bindAnalogStick(gamepad.dpad, from: .pad, inputType: padInputType)
+    }
+    
+    /// Configures input handlers for a micro gamepad profile, including assignable buttons and the d-pad as an analog stick.
     func bindSticks(_ gamepad: GCExtendedGamepad) {
         bindAnalogStick(gamepad.leftThumbstick, from: .leftStick, inputType: leftStickInputType)
         bindAnalogStick(gamepad.rightThumbstick, from: .rightStick, inputType: rightStickInputType)
-        bindAnalogStick(gamepad.dpad, from: .dpad, inputType: padInputType)
+        bindAnalogStick(gamepad.dpad, from: .pad, inputType: padInputType)
     }
     
+    /// Rebinds the analog stick handlers for all connected controllers based on the current input type settings.
     private func rebindSticksIfNeeded() {
         for controller in GCController.controllers() {
             if let gamepad = controller.extendedGamepad {
                 bindSticks(gamepad)
             } else if let gamepad = controller.microGamepad {
-                bindAnalogStick(gamepad.dpad, from: .dpad, inputType: padInputType)
+                bindAnalogStick(gamepad.dpad, from: .pad, inputType: padInputType)
             }
         }
     }
     
+    /// Configures handlers for thumbstick button presses on controllers that support them, treating them as assignable buttons for input capture and action triggering.
     private func configureThumbstickButtonPresses(from controller: GCController) {
         let buttons = controller.physicalInputProfile.buttons
         buttons[GCInputLeftThumbstickButton]?.pressedChangedHandler = { [weak self] _, _, pressed in
@@ -574,18 +612,14 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    private func configureMicroGamepad(_ gamepad: GCMicroGamepad) {
-        bindAssignableButton(gamepad.buttonA, as: .south)
-        bindAssignableButton(gamepad.buttonX, as: .west)
-        bindAnalogStick(gamepad.dpad, from: .dpad, inputType: padInputType)
-    }
-    
+    /// Binds a button input as a "guide" button, which can be used for special functions like dismissing overlays. Sets up a handler to track its pressed state and trigger associated actions.
     private func bindGuideButton(_ button: GCControllerButtonInput?, source: String) {
         button?.pressedChangedHandler = { [weak self] _, _, pressed in
             self?.setGuidePressed(pressed, source: source)
         }
     }
     
+    /// Updates the internal state when a guide button is pressed or released, and triggers overlay dismissal if configured to do so on guide presses.
     private func setGuidePressed(_ pressed: Bool, source: String) {
         isGuideHeld = pressed
         if pressed {
@@ -594,19 +628,22 @@ final class ControllerInputManager: NSObject {
         }
     }
     
+    /// Dismisses the overlay if the guide button is pressed and the user has enabled dismissal via the guide button.
     private func dismissOverlayViaGuideIfNeeded() {
         guard dismissWithGuideButton, isOverlayVisible else { return }
         debugLog("Dismissed overlay via guide button")
         onDismissWithGuideButton?()
     }
     
+    /// Binds a button input as an assignable button for game actions. Sets up a handler to track its pressed state and trigger associated actions based on the button's role in the control scheme.
     private func bindAssignableButton(_ buttonInput: GCControllerButtonInput?, as button: ControllerAssignableButton) {
         buttonInput?.pressedChangedHandler = { [weak self] _, _, pressed in
-            self?.updateRepeatTuning(for: .dpad)
+            self?.updateRepeatTuning(for: .pad)
             self?.handleAssignableButtonChange(button, pressed: pressed)
         }
     }
     
+    /// Handles changes in the pressed state of assignable buttons, updating internal state and triggering associated actions for button presses and releases.
     private func handleAssignableButtonChange(_ button: ControllerAssignableButton, pressed: Bool) {
         if pressed {
             pressedAssignableButtons.insert(button)
@@ -617,26 +654,13 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    //    private func bindDirectionalInput(_ directionPad: GCControllerDirectionPad) {
-    //        directionPad.left.pressedChangedHandler = { [weak self] _, _, pressed in
-    //            self?.setDirectionalInput(.left, pressed: pressed)
-    //        }
-    //
-    //        directionPad.right.pressedChangedHandler = { [weak self] _, _, pressed in
-    //            self?.setDirectionalInput(.right, pressed: pressed)
-    //        }
-    //
-    //        directionPad.up.pressedChangedHandler = { [weak self] _, _, pressed in
-    //            self?.setDirectionalInput(.up, pressed: pressed)
-    //        }
-    //
-    //        directionPad.down.pressedChangedHandler = { [weak self] _, _, pressed in
-    //            self?.setDirectionalInput(.down, pressed: pressed)
-    //        }
-    //    }
-    
     // MARK: - Analog Stick Handling
-    private func bindAnalogStick(_ stick: GCControllerDirectionPad, from source: MovementMode, inputType: [AxisActionType]) {
+    /// Binds a `GCControllerDirectionPad` as an analog stick input source, setting up a value changed handler that processes stick movements according to the specified input types and user settings. Clears any existing handler before binding to avoid conflicts when re-binding.
+    /// - Parameters:
+    ///   - stick: The `GCControllerDirectionPad` to bind as an analog stick input source.
+    ///   - source: The logical source of the input (left stick, right stick, or d-pad) used for state management and action triggering.
+    ///   - inputType: The types of actions this stick should trigger (e.g., overlay movement, mouse movement), which determines how the input is processed and mapped to actions.
+    private func bindAnalogStick(_ stick: GCControllerDirectionPad, from source: AxisInput, inputType: [AxisActionType]) {
         stick.valueChangedHandler = nil // Clear any existing handler to avoid conflicts when re-binding
         
         let normalizedInputTypes = normalizedAxisActionTypes(from: inputType)
@@ -650,26 +674,32 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    private func handleAnalogStick(x: Float, y: Float, from source: MovementMode, inputTypes: [AxisActionType]) {
+    /// Handles input from an analog stick, applying user-configured settings such as deadzone, movement style, and input type prioritization to determine what action to surface.
+    /// - Parameters:
+    ///   - x: The x-axis value of the stick input, typically normalized to the range [-1, 1].
+    ///   - y: The y-axis value of the stick input, typically normalized to the range [-1, 1].
+    ///   - source: The logical source of the input (left stick, right stick, or d-pad) used for state management and action triggering.
+    ///   - inputTypes: The types of actions this stick triggers (e.g., overlay movement, mouse movement).
+    private func handleAnalogStick(x: Float, y: Float, from source: AxisInput, inputTypes: [AxisActionType]) {
         let raw = CGVector(dx: CGFloat(x), dy: CGFloat(y))
         let rawMagnitude = sqrt(raw.dx * raw.dx + raw.dy * raw.dy)
         let joystickDeadzone = switch source {
-        case .dpad: CGFloat(0)
+        case .pad: CGFloat(0)
         case .leftStick: leftStickDeadzone
         case .rightStick: rightStickDeadzone
         }
         
-        // Notify observers of stick changes
+        /// Notify observers of stick changes
         switch source {
         case .leftStick:
             onLeftStickChanged?(raw)
         case .rightStick:
             onRightStickChanged?(raw)
-        case .dpad:
-            onDPadChanged?(raw)
+        case .pad:
+            onPadChanged?(raw)
         }
         
-        // Get per-source state
+        /// Get per-source state
         guard var state = analogStates[source] else { return }
         
         guard let activeInputType = resolvedAxisActionType(from: inputTypes) else {
@@ -677,11 +707,13 @@ final class ControllerInputManager: NSObject {
             return
         }
         
+        /// If input type changed since last update, clear any existing state that may not apply to the new type (e.g., held directions from previous input type).
         if activeInputType != state.lastInputType {
             clearAnalogState(for: source)
             state.lastInputType = activeInputType
         }
         
+        /// Identifies the input event and appropriate movement style.
         let isMouseMovementType = activeInputType == .mouseMovement || activeInputType == .scrollWheel
         let keyboardMovementStyle: KeyboardMovementMode = isMouseMovementType ? .mouse : self.keyboardMovementStyle
         if keyboardMovementStyle != .mouse {
@@ -690,12 +722,12 @@ final class ControllerInputManager: NSObject {
         
         switch keyboardMovementStyle {
         case .mouse:
-            // Low-pass filter to reduce jitter
+            /// Low-pass filter to reduce jitter.
             let alpha = activeInputType == .scrollWheel ? 0.0 : mouseSmoothingAlpha
             state.filteredStick.dx = state.filteredStick.dx * alpha + raw.dx * (1.0 - alpha)
             state.filteredStick.dy = state.filteredStick.dy * alpha + raw.dy * (1.0 - alpha)
             
-            // Start or stop analog timer depending on magnitude vs deadZone
+            /// Start or stop analog timer depending on magnitude vs deadZone.
             if rawMagnitude > joystickDeadzone {
                 startAnalogTimerIfNeeded(from: source)
                 lastAnalogUpdates[source] = Date()
@@ -703,26 +735,26 @@ final class ControllerInputManager: NSObject {
                 stopAnalogTimerIfNeeded(for: source)
             }
             
-            // When in analog mode we do not synthesize discrete presses; timer will generate deltas
-            // But we still may want to clear any discrete held direction state:
+            /// When in analog mode we do not synthesize discrete presses; timer will generate deltas.
+            /// But we still may want to clear any discrete held direction state:
             if let last = state.lastDirection {
-                // release the previous discrete direction if any
+                /// Release the previous discrete direction if any.
                 setDirectionalInput(last, pressed: false, for: activeInputType)
                 state.lastDirection = nil
                 stopMoveRepeat(clearDirection: true, for: activeInputType)
             }
             
         case .limited, .full:
-            // Use the instantaneous raw vector for discrete direction mapping.
-            // Previously we accumulated inputs which could cause drift and
-            // spurious vertical/horizontal components. Assigning the raw
-            // vector prevents those artifacts while still honoring deadzone.
+            /// Use the instantaneous raw vector for discrete direction mapping.
+            /// Previously we accumulated inputs which could cause drift and
+            /// spurious vertical/horizontal components. Assigning the raw
+            /// vector prevents those artifacts while still honoring deadzone.
             state.filteredStick.dx = raw.dx
             state.filteredStick.dy = raw.dy
             
-            // Map to discrete direction based on filteredStick and magnitude vs deadZone
+            /// Map to discrete direction based on filteredStick and magnitude vs deadZone.
             if rawMagnitude <= joystickDeadzone {
-                // release any held discrete direction
+                /// Release any held discrete direction.
                 if let last = state.lastDirection {
                     setDirectionalInput(last, pressed: false, for: activeInputType)
                     state.lastDirection = nil
@@ -738,7 +770,7 @@ final class ControllerInputManager: NSObject {
             let lastChange = lastDirectionChangeDates[source] ?? Date.distantPast
             if newDir != state.lastDirection {
                 if now.timeIntervalSince(lastChange) >= directionDebounceInterval {
-                    // Release previous, press new
+                    /// Release previous, press new.
                     if let last = state.lastDirection {
                         setDirectionalInput(last, pressed: false, for: activeInputType)
                     }
@@ -753,22 +785,32 @@ final class ControllerInputManager: NSObject {
         analogStates[source] = state
     }
     
+    /// Maps a continuous stick input vector to a discrete direction based on the specified movement mode, which determines the angular ranges for each direction.
+    /// - Parameters:
+    ///   - vector: The input vector from the analog stick, typically filtered for smoothing. The x and y components represent the stick position,
+    ///   - mode: The movement mode (limited or full) that determines how the input vector is mapped to discrete directions.
+    /// - Returns: The `OverlayMoveDirection` corresponding to the input vector based on the movement mode.
     private func discreteDirection(for vector: CGVector, mode: KeyboardMovementMode) -> OverlayMoveDirection {
-        let angle = atan2(vector.dy, vector.dx) // -π..π
-        // Convert to degrees 0..360 where 0 = right, 90 = up
+        /// The angle of movement [-π..π]
+        let angle = atan2(vector.dy, vector.dx)
+        
+        /// Convert to degrees 0..360 where 0 = right, 90 = up.
         var degrees = angle * 180.0 / .pi
+        
+        /// Turns -180..180  to 0..360 for easier range checks
         if degrees < 0 { degrees += 360.0 }
         
-        // Cardinal and diagonal angular ranges
+        /// Cardinal and diagonal angular ranges.
         switch mode {
         case .limited:
-            // Map to nearest cardinal: up (45..135), left (135..225), down (225..315), right (315..45)
+            /// Map to nearest cardinal.
             if degrees >= 45 && degrees < 135 { return .up }
             if degrees >= 135 && degrees < 225 { return .left }
             if degrees >= 225 && degrees < 315 { return .down }
             return .right
             
         case .full:
+            /// Fully map to 8 directions.
             switch degrees {
             case 337.5..<360, 0..<22.5: return .right
             case 22.5..<67.5: return .upRight
@@ -782,46 +824,51 @@ final class ControllerInputManager: NSObject {
             }
             
         case .mouse:
-            return .right // unreachable for mouse
+            /// Return a placeholder direction since we won't use it for discrete presses in mouse mode.
+            return .right
         }
     }
     
-    private func startAnalogTimerIfNeeded(from source: MovementMode) {
+    /// Initializes an analog timer for a given input source if one is not already running. Used to generate repeated input events based on the stick position and user settings.
+    /// - Parameter source: The source of the input (left stick, right stick, or d-pad) for which to start the timer.
+    private func startAnalogTimerIfNeeded(from source: AxisInput) {
         guard analogTimers[source] == nil else { return }
         
         let timer = Timer.scheduledTimer(withTimeInterval: joystickTickInterval, repeats: true, block: { [weak self] _ in
             self?.analogTimerFired(from: source)
         })
-        // Ensure timer runs on main runloop in common modes
+        /// Ensure timer runs on main runloop in common modes
         RunLoop.main.add(timer, forMode: .common)
         analogTimers[source] = timer
     }
     
-    private func stopAnalogTimerIfNeeded(for source: MovementMode) {
+    /// Stops and invalidates the analog timer for a given input source if one is running.
+    private func stopAnalogTimerIfNeeded(for source: AxisInput) {
         if let timer = analogTimers[source] {
             timer?.invalidate()
             analogTimers[source] = nil
         }
     }
     
-    private func analogTimerFired(from source: MovementMode) {
+    /// Called when the analog timer fires for a given input source. Computes the appropriate input deltas based on the current stick position, user settings (e.g., sensitivity, inversion), and elapsed time since the last update, then triggers the corresponding mouse movement or scroll actions on the main thread.
+    private func analogTimerFired(from source: AxisInput) {
         let inputType = resolvedAxisActionType(from: inputTypes(for: source))
         guard (inputType == .mouseMovement) || (inputType == .scrollWheel) else {
             stopAnalogTimerIfNeeded(for: source)
             return
         }
         
-        // Get analog input type
+        /// Get analog input type
         let isMouseMovement = inputType == .mouseMovement
         
-        // Get active deadzone
+        /// Get active deadzone
         let joystickDeadzone = switch source {
-        case .dpad: CGFloat(0)
+        case .pad: CGFloat(0)
         case .leftStick: leftStickDeadzone
         case .rightStick: rightStickDeadzone
         }
         
-        // Compute delta using per-source filteredStick and sensitivity
+        /// Compute delta using per-source filteredStick and sensitivity
         let tNow = Date()
         let elapsed = tNow.timeIntervalSince(lastAnalogUpdates[source] ?? Date.distantPast)
         lastAnalogUpdates[source] = tNow
@@ -830,17 +877,17 @@ final class ControllerInputManager: NSObject {
         let mag = sqrt(state.filteredStick.dx * state.filteredStick.dx + state.filteredStick.dy * state.filteredStick.dy)
         guard mag > joystickDeadzone else { return }
         
-        // Normalize and scale magnitude into [0..1] beyond dead zone
+        /// Normalize and scale magnitude into [0..1] beyond dead zone
         let normalizedMag = (mag - joystickDeadzone) / (1.0 - joystickDeadzone)
         let nx = state.filteredStick.dx / mag
         let ny = state.filteredStick.dy / mag
         
-        // velocity = sensitivity * normalizedMag (units/sec)
+        /// velocity = sensitivity * normalizedMag (units/sec)
         let sensitivity = isMouseMovement ? mouseSensitivity : scrollSpeed
         let velocityX = nx * sensitivity * CGFloat(normalizedMag)
         let velocityY = ny * sensitivity * CGFloat(normalizedMag)
         
-        // final variables
+        /// final variables
         var finalVelocityX: CGFloat
         var finalVelocityY: CGFloat
         var xMult: CGFloat
@@ -860,7 +907,7 @@ final class ControllerInputManager: NSObject {
         
         let delta = CGVector(dx: finalVelocityX * xMult, dy: finalVelocityY * yMult)
         
-        // send delta as mouse move on main thread
+        /// send delta as mouse move on main thread
         DispatchQueue.main.async {
             if isMouseMovement {
                 self.sendMouseMove(delta)
@@ -870,9 +917,10 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    private func updateRepeatTuning(for type: MovementMode) {
+    /// Updates the repeat tuning parameters based on the input source type, which determines the initial delay, repeat interval, and acceleration for held inputs that trigger repeated actions.
+    private func updateRepeatTuning(for type: AxisInput) {
         switch type {
-        case .dpad:
+        case .pad:
             holdRepeatInitialDelay = padHoldRepeatInitialDelay
             holdRepeatInitialInterval = padHoldRepeatInitialInterval
             holdRepeatMinimumInterval = padHoldRepeatMinimumInterval
@@ -887,6 +935,7 @@ final class ControllerInputManager: NSObject {
     }
     
     // MARK: - Controller Glyph Handling
+    /// Refreshes the detected controller glyph style and name based on the currently connected controllers.
     private func refreshConnectedControllerGlyphStyle() {
         let controllers = GCController.controllers()
         guard let preferredController = preferredConnectedController(from: controllers) else {
@@ -905,10 +954,15 @@ final class ControllerInputManager: NSObject {
         )
     }
     
+    /// Picks a preferred controller from a list of connected controllers, prioritizing those with a recognizable glyph style for better UI representation.
+    /// Falls back to the first controller if none have a recognizable style.
     private func preferredConnectedController(from controllers: [GCController]) -> GCController? {
         controllers.first(where: { glyphStyle(for: $0) != .generic }) ?? controllers.first
     }
     
+    /// Determines the appropriate glyph style for a given controller based on its vendor name and product category, using a detection method that maps known controllers to specific glyph styles for accurate UI representation.
+    /// - Parameter controller: The `GCController` instance for which to determine the glyph style.
+    /// - Returns: The `ControllerGlyphStyle` corresponding to the controller, or `.generic` if no specific style is detected.
     private func glyphStyle(for controller: GCController) -> ControllerGlyphStyle {
         ControllerGlyphStyle.detect(
             vendorName: controller.vendorName,
@@ -916,6 +970,9 @@ final class ControllerInputManager: NSObject {
         )
     }
     
+    /// Determines a human-readable name for a detected controller based on its vendor name and product category, using a detection method that provides the most specific available information for display in the UI.
+    /// - Parameter controller: The `GCController` instance for which to determine the name.
+    /// - Returns: A string representing the detected controller's name, or "Unknown Controller" if no specific information is available.
     private func detectedControllerName(for controller: GCController) -> String {
         if let vendorName = controller.vendorName?.trimmingCharacters(in: .whitespacesAndNewlines), !vendorName.isEmpty {
             return vendorName
@@ -928,6 +985,9 @@ final class ControllerInputManager: NSObject {
         return "Unknown Controller"
     }
     
+    /// Determines which guide buttons (e.g., Menu, Home, Options) are supported by a given controller, which can be used for special functions like dismissing overlays.
+    /// - Parameter controller: The `GCController` instance for which to determine supported guide buttons.
+    /// - Returns: An array of `ControllerGuideButton` values representing the guide buttons supported by the controller.
     private func supportedGuideButtons(for controller: GCController) -> [ControllerGuideButton] {
         guard controller.extendedGamepad != nil else {
             return []
@@ -939,6 +999,9 @@ final class ControllerInputManager: NSObject {
         return buttons
     }
     
+    /// Retrieves the product category of a controller, which can provide additional information about the controller type for glyph detection and display purposes.
+    /// - Parameter controller: The `GCController` instance for which to retrieve the product category.
+    /// - Returns: A string representing the product category of the controller, or `nil` if this information is not available on the current platform version.
     private func productCategory(for controller: GCController) -> String? {
         if #available(macOS 11.0, iOS 14.0, tvOS 14.0, *) {
             return controller.productCategory
@@ -946,6 +1009,7 @@ final class ControllerInputManager: NSObject {
         return nil
     }
     
+    /// Logs debug messages with a consistent prefix for easier identification in the console output.
     private func publishCaptureState() {
         onCaptureStateChanged?(
             ControllerCaptureState(
@@ -955,10 +1019,16 @@ final class ControllerInputManager: NSObject {
         )
     }
     
+    /// A computed property that determines whether the guide button is currently active.
     private var isGuideActive: Bool {
         isGuideHeld || Date().timeIntervalSince(lastGuidePressDate) < guideChordWindow
     }
     
+    /// Handles setting or clearing directional input for a given direction and action type, managing press counts for multiple input sources, held direction order for fallback behavior, and triggering the appropriate actions when directions are pressed or released.
+    /// - Parameters:
+    ///   - direction: The `OverlayMoveDirection` that is being pressed or released.
+    ///   - pressed: A boolean indicating whether the direction is being pressed (`true`) or released (`false`).
+    ///   - mode: The `AxisActionType` indicating whether this input is for overlay movement or arrow key emulation,  determines which state variables and actions to update.
     private func setDirectionalInput(_ direction: OverlayMoveDirection, pressed: Bool, for mode: AxisActionType) {
         if pressed {
             if mode == .overlayMovement {
@@ -1020,6 +1090,9 @@ final class ControllerInputManager: NSObject {
         }
     }
     
+    /// Normalizes the input axis action types by filtering out `.none` and removing duplicates while preserving order, which simplifies the logic for determining the active input type when processing stick movements.
+    /// - Parameter inputTypes: An array of `AxisActionType` values representing the configured input types for a given stick.
+    /// - Returns: An array of `AxisActionType` values with `.none` removed and duplicates filtered out, preserving the original order of first occurrence.
     private func normalizedAxisActionTypes(from inputTypes: [AxisActionType]) -> [AxisActionType] {
         var seen = Set<AxisActionType>()
         return inputTypes
@@ -1027,6 +1100,11 @@ final class ControllerInputManager: NSObject {
             .filter { seen.insert($0).inserted }
     }
     
+    /// Determines the active axis action type for a given set of input types based on the current overlay visibility and user settings for input prioritization.
+    /// This method resolves conflicts when multiple input types are configured for a stick by applying a consistent prioritization logic that takes into account which
+    /// overlays are currently visible and the user's preferences for how mouse and keyboard inputs should be handled in those contexts.
+    /// - Parameter inputTypes: An array of `AxisActionType` values representing the configured input types for a given stick.
+    /// - Returns: The resolved `AxisActionType` that should be active based on the current context and settings, or `nil` if no valid input type is active.
     private func resolvedAxisActionType(from inputTypes: [AxisActionType]) -> AxisActionType? {
         let normalized = normalizedAxisActionTypes(from: inputTypes)
         guard !normalized.isEmpty else { return nil }
@@ -1043,7 +1121,7 @@ final class ControllerInputManager: NSObject {
                 if prioritizeMouseOverKeyboard {
                     return mouseType ?? keyboardType
                 }
-                // Prefer keyboard when present, otherwise allow mouse.
+                /// Prefer keyboard when present, otherwise allow mouse.
                 return keyboardType ?? mouseType
             }
             return keyboardType
@@ -1052,6 +1130,10 @@ final class ControllerInputManager: NSObject {
         return keyboardType
     }
     
+    /// Determines the preferred mouse-related axis action type from a list of input types, prioritizing `mouseMovement` over `scrollWheel` when both are present.
+    /// This method is used to resolve which mouse action should be active when processing stick movements for overlays that support mouse input.
+    /// - Parameter inputTypes: An array of `AxisActionType` values representing the configured input types for a given stick.
+    /// - Returns: The preferred mouse-related `AxisActionType` (`.mouseMovement`, `.scrollWheel` or `nil`) based on the configured input types.
     private func preferredMouseAxisActionType(from inputTypes: [AxisActionType]) -> AxisActionType? {
         if inputTypes.contains(.mouseMovement) {
             return .mouseMovement
@@ -1062,6 +1144,9 @@ final class ControllerInputManager: NSObject {
         return nil
     }
     
+    /// Determines the preferred keyboard-related axis action type from a list of input types, prioritizing `overlayMovement` over `arrowKeys` when both are present.
+    /// - Parameter inputTypes: An array of `AxisActionType` values representing the configured input types for a given stick.
+    /// - Returns: The preferred keyboard-related `AxisActionType` (`.overlayMovement`, `.arrowKeys` or `nil`) based on the configured input types.
     private func preferredKeyboardAxisActionType(from inputTypes: [AxisActionType]) -> AxisActionType? {
         if inputTypes.contains(.overlayMovement) {
             return .overlayMovement
@@ -1072,19 +1157,24 @@ final class ControllerInputManager: NSObject {
         return nil
     }
     
-    private func inputTypes(for source: MovementMode) -> [AxisActionType] {
+    /// Retrieves the configured input types for a given axis input source, which determines how stick movements from that source should be processed and mapped to actions.
+    /// This method is used when handling stick input to determine the active input type based on the source of the input.
+    /// - Parameter source: The `AxisInput` source (left stick, right stick, or d-pad) for which to retrieve the configured input types.
+    /// - Returns: An array of `AxisActionType` values representing the configured input types for the specified source.
+    private func inputTypes(for source: AxisInput) -> [AxisActionType] {
         switch source {
         case .leftStick:
             return leftStickInputType
         case .rightStick:
             return rightStickInputType
-        case .dpad:
+        case .pad:
             return padInputType
         }
     }
     
-    
-    private func clearAnalogState(for source: MovementMode) {
+    /// Clears the analog state for a given input source, resetting the filtered stick position, last direction, and last input type. Also stops any running analog timer for that source.
+    /// - Parameter source: The `AxisInput` source (left stick, right stick, or d-pad) for which to clear the analog state.
+    private func clearAnalogState(for source: AxisInput) {
         stopAnalogTimerIfNeeded(for: source)
         if var state = analogStates[source] {
             state.filteredStick = CGVector(dx: 0, dy: 0)
@@ -1094,19 +1184,28 @@ final class ControllerInputManager: NSObject {
         }
     }
     
-    private func resetAnalogStateForSource(_ source: MovementMode) {
+    /// Resets the analog state for a given input source, which includes clearing the filtered stick position, last direction, and last input type, as well as stopping any running analog timer.
+    /// - Parameter source: The `AxisInput` source (left stick, right stick, or d-pad) for which to reset the analog state.
+    private func resetAnalogStateForSource(_ source: AxisInput) {
         clearAnalogState(for: source)
         stopAnalogTimerIfNeeded(for: source)
     }
     
+    /// Resets the analog state for all input sources (left stick, right stick, and d-pad). This ensures that any stale state from previous contexts does not interfere with the new context.
     private func resetAnalogStateForContextChange() {
-        for mode in [MovementMode.leftStick, .rightStick, .dpad] {
+        for mode in [AxisInput.leftStick, .rightStick, .pad] {
             resetAnalogStateForSource(mode)
         }
     }
     
     // MARK: - Input Handling
     // MARK: Movement Handling
+    /// Begins a held movement in the specified direction for the given action type (overlay movement or arrow key emulation).
+    /// This method manages the state for held directions, starts the repeat timer, and triggers the initial move action.
+    /// It also ensures that if the direction is already active, it does not restart the movement.
+    /// - Parameters:
+    ///   - direction: The `OverlayMoveDirection` in which to begin the held movement.
+    ///   - mode: The `AxisActionType` indicating whether this movement is for overlay movement or arrow key emulation.
     private func beginHeldMovement(in direction: OverlayMoveDirection, for mode: AxisActionType = .overlayMovement) {
         stopMoveRepeat(clearDirection: false, for: mode)
         
@@ -1123,6 +1222,12 @@ final class ControllerInputManager: NSObject {
         scheduleMoveRepeat(after: holdRepeatInitialDelay ?? padHoldRepeatInitialDelay, for: mode)
     }
     
+    /// Schedules a repeated movement action after a specified delay for the given action type (overlay movement or arrow key emulation).
+    /// This method checks if the corresponding direction is still active before scheduling the repeat and uses a `DispatchWorkItem` to manage the scheduled task,
+    /// allowing it to be cancelled if the direction is released before the repeat occurs.
+    /// - Parameters:
+    ///   - delay: The time interval after which to trigger the repeated movement action.
+    ///   - mode: The `AxisActionType` indicating whether this repeat is for overlay movement or arrow key emulation.
     private func scheduleMoveRepeat(after delay: TimeInterval, for mode: AxisActionType = .overlayMovement) {
         if mode == .overlayMovement {
             guard activeMoveDirection != nil else { return }
@@ -1143,6 +1248,10 @@ final class ControllerInputManager: NSObject {
         }
     }
     
+    /// Performs the repeated movement action for the active direction and action type (overlay movement or arrow key emulation).
+    /// This method checks if the direction is still active, triggers the appropriate move action, increments the repeat step for acceleration,
+    /// calculates the next repeat interval based on the acceleration settings, and schedules the next repeat.
+    /// - Parameter mode: The `AxisActionType` indicating whether this repeat is for overlay movement or arrow key emulation.
     private func performMoveRepeat(_ mode: AxisActionType) {
         var acceleratedInterval: TimeInterval = 0
         
@@ -1181,6 +1290,10 @@ final class ControllerInputManager: NSObject {
         scheduleMoveRepeat(after: acceleratedInterval, for: mode)
     }
     
+    /// Stops the repeated movement action for the active direction and action type (overlay movement or arrow key emulation), optionally clearing the active direction state.
+    /// - Parameters:
+    ///   - clearDirection: A boolean indicating whether to clear the active direction state when stopping the repeat.
+    ///   - mode: The `AxisActionType` indicating whether to stop the repeat for overlay movement or arrow key emulation.
     private func stopMoveRepeat(clearDirection: Bool, for mode: AxisActionType) {
         if mode == .overlayMovement {
             holdRepeatWorkItem?.cancel()
@@ -1201,21 +1314,31 @@ final class ControllerInputManager: NSObject {
         }
     }
     
+    /// Sends a move action for the specified direction and trigger type, invoking the `onMove` callback with the appropriate parameters.
+    /// - Parameters:
+    ///   - direction: The `OverlayMoveDirection` in which the move action is occurring.
+    ///   - trigger: The `OverlayMoveTrigger` indicating whether this is an initial press, a hold repeat, or another type of trigger for the move action.
     private func sendMove(_ direction: OverlayMoveDirection, trigger: OverlayMoveTrigger) {
         debugLog("Move: \(direction) trigger=\(trigger)")
         onMove?(direction, trigger)
     }
     
+    /// Sends a mouse movement action with the specified delta, invoking the `onMouseMove` callback.
+    /// - Parameter delta: A `CGVector` representing the amount of mouse movement to apply in the x and y directions.
     private func sendMouseMove(_ delta: CGVector) {
         debugLog("Mouse Move: \(delta)")
         onMouseMove?(delta)
     }
     
+    /// Sends a scroll action with the specified delta, invoking the `onScroll` callback.
+    /// - Parameter delta: A `CGVector` representing the amount of scroll to apply in the horizontal and vertical directions.
     private func sendScroll(_ delta: CGVector) {
         debugLog("Scroll: \(delta)")
         onScroll?(delta)
     }
     
+    /// Sends arrow key emulation for the specified direction, invoking the `onSelect` callback with the appropriate key codes for the arrow keys corresponding to the direction.
+    /// - Parameter direction: The `OverlayMoveDirection` for which to send the arrow key emulation, which determines which arrow keys are emitted.
     private func sendArrowMove(_ direction: OverlayMoveDirection) {
         debugLog("Arrow Move: \(direction)")
         if !isOverlayVisible || isMouseOverlayVisible {
@@ -1243,6 +1366,9 @@ final class ControllerInputManager: NSObject {
     }
     
     // MARK: Button Input Handling
+    /// Handles the press of an assignable button, determining whether it should be captured for a pending binding, trigger a toggle action if the guide is active,
+    /// or invoke the appropriate callbacks based on the configured action bindings.
+    /// - Parameter button: The `ControllerAssignableButton` that was pressed.
     private func handleAssignableButtonPress(_ button: ControllerAssignableButton) {
         debugLog("Button pressed: \(button)")
         
@@ -1340,6 +1466,8 @@ final class ControllerInputManager: NSObject {
         }
     }
     
+    /// Handles the release of an assignable button, triggering the appropriate callbacks based on the configured action bindings for button releases.
+    /// - Parameter button: The `ControllerAssignableButton` that was released.
     func handleAssignableButtonLift(_ button: ControllerAssignableButton) {
         debugLog("Button lifted: \(button)")
         
