@@ -8,6 +8,7 @@
 import AppKit
 import SwiftUI
 
+/// The controller for the onboarding window
 @MainActor
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
     var onClose: (() -> Void)?
@@ -43,27 +44,35 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     var isVisible: Bool {
         window?.isVisible == true
     }
-
+    
+    /// Show the onboarding view, prepare the window, initialize with the view model and make it appear front and center.
+    /// - Parameter startAtWelcome: Wether to explicitly start the onboarding view at the beginning.
     func show(startAtWelcome: Bool) {
         let window = makeWindowIfNeeded()
         viewModel.prepareForPresentation(startAtWelcome: startAtWelcome)
         window.center()
         window.makeKeyAndOrderFront(nil)
     }
-
+    
+    /// Calls the window to close.
     func close() {
         window?.performClose(nil)
     }
-
+    
+    /// Calls the view model to handle when the overlay shortcut is called.
     func handleShortcutActivation() {
         viewModel.handleShortcutActivation()
     }
-
+    
+    /// Handles window closure
+    /// - Parameter notification: The `Notification` from the window closure
     func windowWillClose(_ notification: Notification) {
         viewModel.stop()
         onClose?()
     }
-
+    
+    /// Returns the window if existing, else it creates a window with specific parameters for the onboarding window
+    /// - Returns: An `NSWindow` containing the onboarding view
     private func makeWindowIfNeeded() -> NSWindow {
         if let window {
             return window
