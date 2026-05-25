@@ -405,7 +405,7 @@ final class AppCoordinator: ObservableObject {
                 self?.controllerInputManager.prioritizeMouseOverKeyboard = value
             }
             .store(in: &cancellables)
-
+        
         settings.$enableHaptics
             .sink { [weak self] value in
                 self?.controllerInputManager.enableHaptics = value
