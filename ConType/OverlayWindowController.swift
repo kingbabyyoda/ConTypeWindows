@@ -10,14 +10,21 @@ import Combine
 import SkyLightWindow
 import SwiftUI
 
+/// The controller for the overlay windows, both the keyboard and mouse overlays.
+/// - Began
+/// - Changed
+/// - Ended
 enum DragPhase { case began, changed, ended }
 
+/// A custom NSPanel subclass that doesn't become key or main, allowing mouse events to pass through to underlying windows. It also includes a drag handler closure that can be set to respond to mouse drag events for implementing the snapping behavior.
 final class NonActivatingOverlayPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
     
     var dragHandler: ((NSEvent, DragPhase) -> Void)?
     
+    /// Overrides mouseDown to track dragging events. It calls the dragHandler closure with the appropriate phase for began, changed, and ended drag events.
+    /// - Parameter event: The initial mouse down event that starts the drag tracking.
     override func mouseDown(with event: NSEvent) {
         dragHandler?(event, .began)
         
@@ -38,6 +45,7 @@ final class NonActivatingOverlayPanel: NSPanel {
     }
 }
 
+/// The main controller for managing the overlay windows, including showing/hiding, resizing, moving, and handling interactions with the keyboard and mouse overlays. It also manages the snapping behavior through the `OverlaySnappingManager` and emits key events via the `KeyEmitter`.
 @MainActor
 final class OverlayWindowController {
     private var hasShownKeyboard = false
@@ -70,9 +78,10 @@ final class OverlayWindowController {
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
-
-    @discardableResult
-    func show() -> Bool {
+    
+    /// Shows the appropriate overlay window based on the current mode (keyboard or mouse). It first hides any existing windows, then creates and positions the new window as needed, and finally makes it visible.
+    /// - Returns: `true` if the window is visible after calling `show()`, `false` otherwise.
+    @discardableResult func show() -> Bool {
         // Hide any existing windows if any
         hide()
         
@@ -92,7 +101,8 @@ final class OverlayWindowController {
             return keyboardWindow.isVisible
         }
     }
-
+    
+    /// Hides both the keyboard and mouse overlay windows, clears any snapping guides, and resets the snapping state in the `OverlaySnappingManager`.
     func hide() {
         keyboardWindow?.orderOut(nil)
         mouseWindow?.orderOut(nil)
@@ -104,45 +114,58 @@ final class OverlayWindowController {
         snappingManager.keyboardSessionHasSnap = false
         snappingManager.mouseSessionHasSnap = false
     }
-
-    @discardableResult
-    func moveSelection(
+    
+    /// Moves the current selection in the keyboard overlay in the specified direction, triggered by either a key press or a key hold.
+    /// - Parameters:
+    ///   - direction: The `OverlayMoveDirection` indicating which direction to move the selection.
+    ///   - trigger: The `OverlayMoveTrigger` indicating whether the move was triggered by a key press or a key hold. Defaults to `.press`.
+    /// - Returns: `true` if the selection was successfully moved, `false` otherwise.
+    @discardableResult func moveSelection(
         _ direction: OverlayMoveDirection,
         trigger: OverlayMoveTrigger = .press
     ) -> Bool {
         keyboardViewModel.move(direction, trigger: trigger)
     }
-
+    
+    /// Activates the currently selected key in the keyboard overlay, emitting the corresponding key event through the `KeyEmitter`.
     func activateSelectedKey() {
         keyboardViewModel.activateSelected { [weak self] key, modifiers in
             self?.keyEmitter.emit(key, modifiers: modifiers)
         }
     }
-
+    
+    /// Activates the backspace key by emitting the corresponding key event through the `KeyEmitter`.
     func activateBackspaceKey() {
         keyEmitter.emit(keyCode: 51)
     }
-
+    
+    /// Activates the space key by emitting the corresponding key event through the `KeyEmitter`.
     func activateSpaceKey() {
         keyEmitter.emit(keyCode: 49)
     }
-
+    
+    /// Activates the enter/return key by emitting the corresponding key event through the `KeyEmitter`.
     func activateEnterKey() {
         keyEmitter.emit(keyCode: 36)
     }
-
+    
+    /// Activates the shift shortcut, toggling or cycling through shift states in the keyboard overlay. Calls the `cycleShiftShortcut` method on the `keyboardViewModel`.
+    /// - Parameter cyclesToCapsLock: A `Bool` indicating whether cycling through shift states should also include toggling caps lock.
     func activateShiftShortcut(cyclesToCapsLock: Bool) {
         keyboardViewModel.cycleShiftShortcut(cyclesToCapsLock: cyclesToCapsLock)
     }
-
+    
+    /// Activates the caps lock shortcut, toggling caps lock state in the keyboard overlay. Calls the `toggleCapsLockShortcut` method on the `keyboardViewModel`.
     func activateCapsLockShortcut() {
         keyboardViewModel.toggleCapsLockShortcut()
     }
     
+    /// Updates the keyboard overlay window size based on the current settings. It calls the `resizeWindow` method with the `keyboardWindowSize` from the settings.
     func updateWindowSize() {
         resizeWindow(to: settings.keyboardWindowSize)
     }
-
+    
+    /// Enlarges the keyboard overlay window to the next larger preset size. If currently in mouse mode, it switches back to keyboard mode and shows the keyboard overlay instead.
     func enlargeWindow() {
         if settings.inMouseMode {
             settings.inMouseMode = false
@@ -153,7 +176,8 @@ final class OverlayWindowController {
             updateWindowSize()
         }
     }
-
+    
+    /// Shrinks the keyboard overlay window to the next smaller preset size. If currently in mouse mode, it does nothing. If already at the smallest preset size and not in mouse mode, it switches to mouse mode and shows the mouse overlay instead.
     func shrinkWindow() {
         if settings.inMouseMode {
             return
@@ -172,10 +196,17 @@ final class OverlayWindowController {
         }
     }
     
+    /// Calculates the default window placement for either the keyboard or mouse overlay based on the screen frame and the window size. For the keyboard overlay, it centers the window on the screen. For the mouse overlay, it places the window in the bottom-left corner with a small inset.
+    /// - Parameters:
+    ///   - isKeyboard: A `Bool` indicating whether the placement is for the keyboard overlay (`true`) or the mouse overlay (`false`).
+    ///   - windowSize: The `NSSize` of the window to be placed, used for calculating the centered position for the keyboard overlay.
+    ///   - screenFrame: The `NSRect` representing the visible frame of the screen, used for calculating the placement of the window within the screen bounds.
+    /// - Returns: An `NSPoint` representing the origin where the window should be placed by default.
     func defaultWindowPlacement(isKeyboard: Bool, windowSize: NSSize, screenFrame: NSRect) -> NSPoint {
         if isKeyboard {
             return NSPoint(
-                x: screenFrame.midX - (windowSize.width / 2),
+                x:
+                    screenFrame.midX - (windowSize.width / 2),
                 y: screenFrame.midY - (windowSize.height / 2)
             )
         } else {
@@ -185,7 +216,9 @@ final class OverlayWindowController {
             return NSPoint(x: x, y: y)
         }
     }
-
+    
+    /// Creates the keyboard overlay window if it doesn't already exist. It sets up the content view with the `KeyboardOverlayView`, configures the window properties for the overlay, and adds observers for window movement and resizing to handle snapping and settings updates.
+    /// - Returns: An `NSWindow` instance representing the keyboard overlay, either newly created or existing.
     private func makeWindowIfNeeded() -> NSWindow {
         if let keyboardWindow {
             return keyboardWindow
@@ -251,7 +284,11 @@ final class OverlayWindowController {
         
         return window
     }
-
+    
+    /// Resizes the keyboard overlay window to the specified size. It calculates the target size based on the preset or custom dimensions, ensures it fits within the screen bounds, and then applies the new frame to the window. It also handles positioning the window appropriately based on whether it's the first time showing it or if it's being resized after already being shown. Finally, it refreshes the snapping guides if needed.
+    /// - Parameters:
+    ///   - size: The `WindowSize` indicating the preset or custom size to resize the keyboard overlay to.
+    ///   - refreshGuide: A `Bool` indicating whether to refresh the snapping guide after resizing. Defaults to `true`.
     private func resizeWindow(to size: WindowSize, refreshGuide: Bool = true) {
         guard let keyboardWindow else { return }
         guard !isApplyingProgrammaticResize else { return }
@@ -308,6 +345,8 @@ final class OverlayWindowController {
         }
     }
     
+    /// Creates the mouse overlay window if it doesn't already exist. It sets up the content view with the `MouseOverlayView`, configures the window properties for the overlay, and adds an observer for window movement to handle snapping and settings updates.
+    /// - Returns: An `NSWindow` instance representing the mouse overlay, either newly created or existing.
     private func makeMouseWindowIfNeeded() -> NSWindow {
         if let mouseWindow {
             return mouseWindow
@@ -364,6 +403,7 @@ final class OverlayWindowController {
         return window
     }
     
+    /// Positions the mouse overlay window based on the current settings. It calculates the new origin for the window either from the saved position in the settings or by using the default placement if no position is saved. It then applies the new frame origin to the window and resets any snapping state in the `OverlaySnappingManager`.
     func positionMouseWindow() {
         guard let mouseWindow else { return }
         let screen = NSScreen.main ?? mouseWindow.screen ?? NSScreen.screens.first
@@ -387,6 +427,8 @@ final class OverlayWindowController {
     }
     
     //MARK: - Window Event Handlers
+    /// Handles the window movement event for both the keyboard and mouse overlay windows. It updates the corresponding position in the settings when either window is moved, and refreshes the snapping guides through the `OverlaySnappingManager`. It also checks flags to prevent handling movements that are caused by programmatic resizing or snapping to avoid conflicts.
+    /// - Parameter notification: The `Notification` object containing information about the window movement event, including the window that moved.
     @objc private func windowDidMove(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         guard !isApplyingProgrammaticResize, !isApplyingProgrammaticSnap else { return }
@@ -399,7 +441,9 @@ final class OverlayWindowController {
         
         snappingManager.refreshPositionGuide(for: window)
     }
-
+    
+    /// Handles the window resize event for the keyboard overlay window. It updates the custom dimensions and position in the settings when the keyboard window finishes resizing, and sets the window size to custom. It also checks a flag to prevent handling resizes that are caused by programmatic resizing to avoid conflicts.
+    /// - Parameter notification: The `Notification` object containing information about the window resize event, including the window that finished resizing.
     @objc private func windowDidEndLiveResize(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
             window === self.keyboardWindow,

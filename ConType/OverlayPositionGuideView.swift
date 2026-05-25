@@ -9,9 +9,8 @@ import Combine
 import SwiftUI
 
 /// Types of overlay position guides used by the UI.
-/// Contains:
-/// - `keyboard` — guide used when positioning the keyboard overlay.
-/// - `mouse` — guide used when positioning the mouse overlay.
+/// - `keyboard` - guide used when positioning the keyboard overlay.
+/// - `mouse` - guide used when positioning the mouse overlay.
 enum OverlayPositionGuideKind: String {
     case keyboard
     case mouse

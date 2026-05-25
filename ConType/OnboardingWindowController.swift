@@ -71,7 +71,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         onClose?()
     }
     
-    /// Returns the window if existing, else it creates a window with specific parameters for the onboarding window
+    /// Creates the onboarding window if it doesn't exist, sets up the hosting controller with the onboarding view and configures the window properties.
     /// - Returns: An `NSWindow` containing the onboarding view
     private func makeWindowIfNeeded() -> NSWindow {
         if let window {

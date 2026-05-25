@@ -10,10 +10,9 @@ import Combine
 import SwiftUI
 
 /// An enum representing the current snapping state of the keyboard window, which can affect how the snapping logic applies during drags and releases.
-/// Contains:
-///     - `none`: No active snap, the window is free to move without any special snapping behavior.
-///     - `absoluteCenter`: The window is snapped to the absolute center of the screen.
-///     - `verticalTrack`: The window is snapped along a vertical track centered on the screen.
+/// - `none`- No active snap, the window is free to move without any special snapping behavior.
+/// - `absoluteCenter` - The window is snapped to the absolute center of the screen.
+/// - `verticalTrack` - The window is snapped along a vertical track centered on the screen.
 private enum KeyboardSnapState {
     case none
     case absoluteCenter
