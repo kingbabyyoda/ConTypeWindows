@@ -9,12 +9,18 @@ import AppKit
 import Combine
 import SwiftUI
 
+/// An enum representing the current snapping state of the keyboard window, which can affect how the snapping logic applies during drags and releases.
+/// Contains:
+///     - `none`: No active snap, the window is free to move without any special snapping behavior.
+///     - `absoluteCenter`: The window is snapped to the absolute center of the screen.
+///     - `verticalTrack`: The window is snapped along a vertical track centered on the screen.
 private enum KeyboardSnapState {
     case none
     case absoluteCenter
     case verticalTrack
 }
 
+/// The manager responsible for handling the snapping behavior of the keyboard and mouse overlay windows, including the logic for determining when to snap, reveal guides, and release snaps based on user interactions.
 @MainActor
 final class OverlaySnappingManager: ObservableObject {
     var keyboardSnapDistance: CGFloat = 72
@@ -47,6 +53,9 @@ final class OverlaySnappingManager: ObservableObject {
         self.mouseWindow = mouseWindow
     }
     
+    /// Creates and configures the position guide window if it doesn't exist, or updates its frame if it does. This window is used to display visual guides for snapping targets when the user is dragging an overlay window.
+    /// - Parameter screenFrame: The `NSRect` frame of the screen (or visible area) that the guide window should cover, used for coordinate conversion and guide rendering.
+    /// - Returns: The `NSWindow` instance of the position guide window, ready to be displayed or updated.
     func makePositionGuideWindowIfNeeded(for screenFrame: NSRect) -> NSWindow {
         if let positionGuideWindow {
             if positionGuideWindow.frame != screenFrame {
@@ -83,6 +92,8 @@ final class OverlaySnappingManager: ObservableObject {
         return window
     }
     
+    /// Refreshes the position guide based on the current position of the given window. This method calculates the appropriate snapping targets and distances, determines whether to show the guide, and handles snap locking and suppression logic for both keyboard and mouse windows.
+    /// - Parameter window: The `NSWindow` that is being dragged and for which the position guide should be refreshed.
     func refreshPositionGuide(for window: NSWindow) {
         guard let screenFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame else {
             clearPositionGuide()
@@ -239,6 +250,7 @@ final class OverlaySnappingManager: ObservableObject {
         }
     }
     
+    /// Hides the position guide window and clears any active snapping targets or suppression states.
     func clearPositionGuide() {
         guard !isMouseTrackingActive else { return }
         
@@ -248,6 +260,8 @@ final class OverlaySnappingManager: ObservableObject {
         positionGuideModel.clear()
     }
     
+    /// Programmatically snaps the keyboard window to the specified origin point, updating the relevant state properties to reflect the new snap lock and suppression conditions.
+    /// - Parameter origin: The `NSPoint` to which the keyboard window should be snapped.
     func snapKeyboardWindow(to origin: NSPoint) {
         guard let keyboardWindow, keyboardWindow.frame.origin != origin else { return }
         isApplyingProgrammaticSnap = true
@@ -259,6 +273,8 @@ final class OverlaySnappingManager: ObservableObject {
         settings.keyboardWindowPosition = origin
     }
     
+    /// Programmatically snaps the mouse window to the specified origin point, updating the relevant state properties to reflect the new snap lock and suppression conditions.
+    /// - Parameter origin: The `NSPoint` to which the mouse window should be snapped.
     func snapMouseWindow(to origin: NSPoint) {
         guard let mouseWindow, mouseWindow.frame.origin != origin else { return }
         isApplyingProgrammaticSnap = true
@@ -270,6 +286,11 @@ final class OverlaySnappingManager: ObservableObject {
         settings.mouseWindowPosition = origin
     }
     
+    /// Calculates the target frame for the keyboard window guide based on the current frame of the window and the screen frame.
+    /// - Parameters:
+    ///   - currentFrame: The current `NSRect` frame of the keyboard window, used to determine the size of the guide and its relation to the snap targets.
+    ///   - screenFrame: The `NSRect` frame of the screen (or visible area) that the guide should consider for positioning, used to calculate the center point for the guide.
+    /// - Returns: An `NSRect` representing the target frame for the keyboard guide, centered on the screen with the same size as the current window frame.
     func keyboardGuideTargetFrame(for currentFrame: NSRect, screenFrame: NSRect) -> NSRect {
         NSRect(
             x: screenFrame.midX - (currentFrame.width / 2),
@@ -279,6 +300,11 @@ final class OverlaySnappingManager: ObservableObject {
         )
     }
     
+    /// Calculates potential guide targets for the mouse window based on the given window size and screen frame. The method generates target frames for snapping to the four corners of the screen, applying an inset to avoid edge collisions, and returns them as an array of `OverlayPositionGuideTarget` instances.
+    /// - Parameters:
+    ///   - windowSize: The `NSSize` of the mouse window, used to determine the size of the guide targets and ensure they match the window dimensions for accurate snapping feedback.
+    ///   - screenFrame: The `NSRect` frame of the screen (or visible area) that the guide should consider for positioning, used to calculate the positions of the corner targets while applying an inset to keep them within visible bounds.
+    /// - Returns: An array of `OverlayPositionGuideTarget` representing the potential snap targets for the mouse window at the corners of the screen, each with a frame sized to match the window size and positioned with an inset from the edges.
     func mouseGuideTargets(for windowSize: NSSize, screenFrame: NSRect) -> [OverlayPositionGuideTarget] {
         let inset: CGFloat = 16
         let width = windowSize.width
@@ -317,14 +343,28 @@ final class OverlaySnappingManager: ObservableObject {
         ]
     }
     
+    /// Calculates the distance between the centers of two rectangles.
+    /// - Parameters:
+    ///   - first: The first `NSRect` whose center will be used for distance calculation.
+    ///   - second: The second `NSRect` whose center will be used for distance calculation.
+    /// - Returns: A `CGFloat` representing the distance between the centers of the two rectangles.
     func centerDistance(between first: NSRect, and second: NSRect) -> CGFloat {
         hypot(first.midX - second.midX, first.midY - second.midY)
     }
     
+    /// Calculates the distance between two points.
+    /// - Parameters:
+    ///   - first: The first `NSPoint` used for distance calculation.
+    ///   - second: The second `NSPoint` used for distance calculation.
+    /// - Returns: A `CGFloat` representing the distance between the two points.
     func originDistance(between first: NSPoint, and second: NSPoint) -> CGFloat {
         hypot(first.x - second.x, first.y - second.y)
     }
     
+    /// Handles the dragging of a window by updating the virtual window origin based on the current mouse location and applying snapping logic according to the defined thresholds and states. This method manages the entire lifecycle of a drag operation, including starting the drag, updating the window position during the drag, and finalizing the position when the drag ends, while also refreshing the position guide as needed.
+    /// - Parameters:
+    ///   - phase: The `DragPhase` indicating the current phase of the drag operation (began, changed, ended)
+    ///   - window: The `NSWindow` that is being dragged
     func handleWindowDrag(phase: DragPhase, window: NSWindow) {
         let currentGlobalMouse = NSEvent.mouseLocation
         
