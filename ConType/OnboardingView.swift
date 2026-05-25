@@ -13,9 +13,12 @@ import SwiftUI
 @MainActor
 final class OnboardingViewModel: ObservableObject {
     let settings: AppSettings
+    private let isPermissionAuthorized: @MainActor () -> Bool
+    private let requestPermissionAuthorization: @MainActor () -> Bool
+    private let restartApplication: @MainActor () -> Void
     
     @Published private(set) var step = 0
-    @Published private(set) var isAccessibilityTrusted = InputMonitoringPermission.isAuthorized()
+    @Published private(set) var isAccessibilityTrusted = false
     @Published var isAwaitingPermissionGrant: Bool = false
     
     var onComplete: (() -> Void)?
@@ -28,8 +31,17 @@ final class OnboardingViewModel: ObservableObject {
     
     private var permissionPollTimer: Timer?
     
-    init(settings: AppSettings) {
+    init(
+        settings: AppSettings,
+        isPermissionAuthorized: @escaping @MainActor () -> Bool = InputMonitoringPermission.isAuthorized,
+        requestPermissionAuthorization: @escaping @MainActor () -> Bool = InputMonitoringPermission.requestAuthorization,
+        restartApplication: (@MainActor () -> Void)? = nil
+    ) {
         self.settings = settings
+        self.isPermissionAuthorized = isPermissionAuthorized
+        self.requestPermissionAuthorization = requestPermissionAuthorization
+        self.restartApplication = restartApplication ?? Self.defaultRestartApplication
+        self.isAccessibilityTrusted = isPermissionAuthorized()
     }
     
     /// Sets the active step based on how the view was invoked. Usually called when the onboarding view is called.
@@ -42,7 +54,7 @@ final class OnboardingViewModel: ObservableObject {
             settings.restartedFromPermissionScreen = false
             startPermissionPollingIfNeeded()
         } else {
-            step = InputMonitoringPermission.isAuthorized() ? 2 : 1
+            step = isPermissionAuthorized() ? 2 : 1
             startPermissionPollingIfNeeded()
         }
         
@@ -78,18 +90,10 @@ final class OnboardingViewModel: ObservableObject {
             // From HoldToTalk Repository, by @jxucoder
             // Restart app
             settings.restartedFromPermissionScreen = true
-            
-            let url = Bundle.main.bundleURL
-            let config = NSWorkspace.OpenConfiguration()
-            config.createsNewApplicationInstance = true
-            NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in
-                DispatchQueue.main.async {
-                    NSApp.terminate(nil)
-                }
-            }
+            restartApplication()
         }
         
-        _ = InputMonitoringPermission.requestAuthorization()
+        _ = requestPermissionAuthorization()
         startPermissionPollingIfNeeded()
         refreshAccessibilityStatus(advanceFromPermissionStep: true)
         isAwaitingPermissionGrant = true
@@ -125,7 +129,7 @@ final class OnboardingViewModel: ObservableObject {
     /// Checks if the user has granted the app the required permission.
     /// - Parameter advanceFromPermissionStep: A `Bool` indicating wether the function should advance the view after the permission                                                                                         is given.
     private func refreshAccessibilityStatus(advanceFromPermissionStep: Bool) {
-        let trusted = InputMonitoringPermission.isAuthorized()
+        let trusted = isPermissionAuthorized()
         let wasTrusted = isAccessibilityTrusted
         
         if wasTrusted != trusted {
@@ -135,6 +139,18 @@ final class OnboardingViewModel: ObservableObject {
         
         if advanceFromPermissionStep, !wasTrusted, trusted, step == 1 {
             step = 2
+        }
+    }
+    
+    @MainActor
+    private static func defaultRestartApplication() {
+        let url = Bundle.main.bundleURL
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in
+            DispatchQueue.main.async {
+                NSApp.terminate(nil)
+            }
         }
     }
 }
@@ -158,7 +174,7 @@ struct OnboardingView: View {
             default:
                 readyStep
             }
-                         
+            
             Spacer(minLength: 20)
             
             actionRow
@@ -241,7 +257,7 @@ struct OnboardingView: View {
             
             Text("You should know...")
                 .font(.largeTitle.weight(.semibold))
-                
+            
             Image("MenubarHint")
                 .resizable()
                 .interpolation(.high)

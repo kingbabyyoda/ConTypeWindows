@@ -60,8 +60,13 @@ final class SettingsViewModel: ObservableObject {
     var onUpdateWindowSize: () -> Void
     var onTriggerHaptics: () -> Void
     
+    // Permission providers (injected for test seam)
+    private let permissionIsAuthorized: @MainActor () -> Bool
+    private let requestPermissionAuthorization: @MainActor () -> Bool
+    
     // Published UI state
     @Published var isAccessibilityTrusted: Bool
+    @Published var isAwaitingPermissionGrant: Bool = false
     
     @Published var isAxisInputPopoverOpen: Bool = false
     @Published var activeAxisInputPicker: AxisInput?
@@ -87,6 +92,7 @@ final class SettingsViewModel: ObservableObject {
     // Event monitors (not @Published)
     private var keyboardKeyDownMonitor: Any?
     private var keyboardFlagsMonitor: Any?
+    private var permissionPollTimer: Timer?
     
     // Constants
     let waitingKeyboardText = "Waiting for keyboard input..."
@@ -102,7 +108,9 @@ final class SettingsViewModel: ObservableObject {
         onCancelControllerCapture: @escaping () -> Void,
         onRestartOnboarding: @escaping () -> Void,
         onUpdateWindowSize: @escaping () -> Void,
-        onTriggerHaptics: @escaping () -> Void
+        onTriggerHaptics: @escaping () -> Void,
+        permissionIsAuthorized: @escaping @MainActor () -> Bool = InputMonitoringPermission.isAuthorized,
+        requestPermissionAuthorization: @escaping @MainActor () -> Bool = InputMonitoringPermission.requestAuthorization
     ) {
         self.settings = settings
         self.joystick = joystick
@@ -112,7 +120,9 @@ final class SettingsViewModel: ObservableObject {
         self.onRestartOnboarding = onRestartOnboarding
         self.onUpdateWindowSize = onUpdateWindowSize
         self.onTriggerHaptics = onTriggerHaptics
-        self.isAccessibilityTrusted = InputMonitoringPermission.isAuthorized()
+        self.permissionIsAuthorized = permissionIsAuthorized
+        self.requestPermissionAuthorization = requestPermissionAuthorization
+        self.isAccessibilityTrusted = self.permissionIsAuthorized()
         self.leftStickDeadzone = settings.leftStickDeadzone
         self.rightStickDeadzone = settings.rightStickDeadzone
         self.mouseSensitivity = settings.mouseSensitivity
@@ -143,6 +153,8 @@ final class SettingsViewModel: ObservableObject {
         if let keyboardFlagsMonitor {
             NSEvent.removeMonitor(keyboardFlagsMonitor)
         }
+        permissionPollTimer?.invalidate()
+        permissionPollTimer = nil
     }
     
     /// Triggers a callback to restart the onboarding flow.
@@ -166,6 +178,49 @@ final class SettingsViewModel: ObservableObject {
         scrollSpeed = settings.scrollSpeed
         invertScrollX = settings.invertScrollX
         invertScrollY = settings.invertScrollY
+    }
+    
+    // MARK: - Permission handling
+    /// Requests input-monitoring permission from the OS and begins polling for changes.
+    func requestPermission() {
+        _ = requestPermissionAuthorization()
+        isAwaitingPermissionGrant = true
+        startPermissionPollingIfNeeded()
+        refreshAccessibilityStatus()
+    }
+    
+    private func startPermissionPollingIfNeeded() {
+        guard permissionPollTimer == nil else { return }
+        
+        let timer = Timer(timeInterval: 0.8, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.refreshAccessibilityStatus()
+            }
+        }
+        
+        RunLoop.main.add(timer, forMode: .common)
+        permissionPollTimer = timer
+    }
+    
+    private func stopPermissionPolling() {
+        permissionPollTimer?.invalidate()
+        permissionPollTimer = nil
+        isAwaitingPermissionGrant = false
+    }
+    
+    /// Refreshes the cached accessibility/input-monitoring state from the provided provider.
+    private func refreshAccessibilityStatus() {
+        let trusted = permissionIsAuthorized()
+        let wasTrusted = isAccessibilityTrusted
+        
+        if wasTrusted != trusted {
+            isAccessibilityTrusted = trusted
+        }
+        
+        if trusted {
+            stopPermissionPolling()
+        }
     }
     
     // MARK: Computed Helpers
@@ -198,6 +253,12 @@ final class SettingsViewModel: ObservableObject {
     /// Begins the process of recording a new keyboard hotkey by setting up local event monitors for key presses and modifier changes. It ensures that any ongoing recordings for controller bindings or action pickers are cancelled to avoid conflicts. The method updates the relevant state properties to reflect that recording is in progress and captures the user's input to update the settings accordingly.
     func beginKeyboardHotkeyRecording() {
         if !isRecordingKeyboardHotkey {
+            // Require input-monitoring permission before installing global/local event monitors.
+            // If permission isn't granted, trigger the request flow and avoid attaching monitors that will never fire.
+            if !isAccessibilityTrusted {
+                requestPermission()
+                return
+            }
             if isRecordingControllerHotkey { endControllerToggleRecording() }
             if activeControllerActionPicker != nil { endControllerActionPicker() }
             isRecordingKeyboardHotkey = true
@@ -231,11 +292,9 @@ final class SettingsViewModel: ObservableObject {
     
     /// Ends the keyboard hotkey recording process by removing the local event monitors and resetting the relevant state properties. If the recording was cancelled (e.g., by pressing the Escape key), it ensures that any temporary state is cleared without updating the settings.
     func endKeyboardHotkeyRecording() {
-        DispatchQueue.main.async {
-            self.isRecordingKeyboardHotkey = false
-            self.keyboardPreviewShortcut = nil
-            self.keyboardPressedModifiers = []
-        }
+        isRecordingKeyboardHotkey = false
+        keyboardPreviewShortcut = nil
+        keyboardPressedModifiers = []
         
         if let keyboardKeyDownMonitor {
             NSEvent.removeMonitor(keyboardKeyDownMonitor)
@@ -272,11 +331,9 @@ final class SettingsViewModel: ObservableObject {
             isRecordingControllerHotkey = true
             activeControllerTogglePicker = toggle
             onRequestControllerBindingCapture { [weak self] binding in
-                DispatchQueue.main.async {
-                    guard let self = self else { return }
-                    self.settings.controllerToggleBindings.setBinding(binding, for: toggle)
-                    self.endControllerToggleRecording(cancelCapture: false)
-                }
+                guard let self = self else { return }
+                self.settings.controllerToggleBindings.setBinding(binding, for: toggle)
+                self.endControllerToggleRecording(cancelCapture: false)
             }
         }
     }
@@ -284,14 +341,11 @@ final class SettingsViewModel: ObservableObject {
     /// Ends the controller toggle recording process by resetting the relevant state properties and triggering a callback to cancel any ongoing input capture. If the recording was cancelled, it ensures that any temporary state is cleared without updating the settings.
     /// - Parameter cancelCapture: A boolean indicating whether to trigger the cancellation callback
     func endControllerToggleRecording(cancelCapture: Bool = true) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            let wasRecording = self.isRecordingControllerHotkey
-            self.isRecordingControllerHotkey = false
-            self.activeControllerTogglePicker = nil
-            if cancelCapture && wasRecording {
-                self.onCancelControllerCapture()
-            }
+        let wasRecording = isRecordingControllerHotkey
+        isRecordingControllerHotkey = false
+        activeControllerTogglePicker = nil
+        if cancelCapture && wasRecording {
+            onCancelControllerCapture()
         }
     }
     
@@ -312,12 +366,10 @@ final class SettingsViewModel: ObservableObject {
         guard activeControllerActionPicker == action else { return }
         
         onRequestControllerActionButtonCapture { [weak self] button in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                guard self.activeControllerActionPicker == action else { return }
-                self.setControllerActionButton(button, for: action)
-                self.armControllerActionButtonCapture(for: action)
-            }
+            guard let self = self else { return }
+            guard self.activeControllerActionPicker == action else { return }
+            self.setControllerActionButton(button, for: action)
+            self.armControllerActionButtonCapture(for: action)
         }
     }
     
@@ -336,13 +388,10 @@ final class SettingsViewModel: ObservableObject {
     ///   - button: The `ControllerAssignableButton` that was captured for the action binding
     ///   - action: The `ControllerActionBinding` that is being configured
     func setControllerActionButton(_ button: ControllerAssignableButton, for action: ControllerActionBinding) {
-        DispatchQueue.main.async {
-            var updated = self.settings.controllerActionBindings
-            updated.setButton(button, for: action)
-            self.settings.controllerActionBindings = updated
-            // Force view update if needed
-            self.objectWillChange.send()
-        }
+        var updated = settings.controllerActionBindings
+        updated.setButton(button, for: action)
+        settings.controllerActionBindings = updated
+        objectWillChange.send()
     }
     
     // MARK: - Utilities

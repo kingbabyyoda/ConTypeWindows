@@ -605,7 +605,7 @@ enum WindowSize: String, CaseIterable, Identifiable {
             return customSize ?? NSSize(width: 1000, height: 375)
         }
     }
-
+    
     /// Returns the next larger preset window size. If the current size is custom, it will determine the next largest preset size based on the provided custom dimensions.
     /// - Parameter customSize: An optional `NSSize` representing the custom dimensions to use
     /// - Returns: A `WindowSize` representing the next larger preset size.
@@ -625,7 +625,7 @@ enum WindowSize: String, CaseIterable, Identifiable {
             return Self.selectableCases[min(currentIndex + 1, Self.selectableCases.count - 1)]
         }
     }
-
+    
     /// Returns the next smaller preset window size. If the current size is custom, it will determine the next smallest preset size based on the provided custom dimensions.
     /// - Parameter customSize: An optional `NSSize` representing the custom dimensions to use
     /// - Returns: A `WindowSize` representing the next smaller preset size.
@@ -660,13 +660,13 @@ enum WindowSize: String, CaseIterable, Identifiable {
     private static func presetIndex(for dimensions: NSSize) -> Int {
         let widths = selectableCases.map { $0.windowDimensions().width }
         var currentIndex = 0
-
+        
         for (index, width) in widths.enumerated() {
             if dimensions.width >= width {
                 currentIndex = index
             }
         }
-
+        
         return currentIndex
     }
 }
@@ -674,6 +674,9 @@ enum WindowSize: String, CaseIterable, Identifiable {
 /// Class representing the app settings, which are persisted across app launches and can be observed for changes.
 @MainActor
 final class AppSettings: ObservableObject {
+    /// Test seam that allows the settings file location to be redirected.
+    static var settingsURLOverride: URL?
+    
     // MARK: - Onboarding
     /// Utilized to determine if the app was restarted from the permission screen during onboarding. Utilized when restarting the app to refresh permission.
     @Published var restartedFromPermissionScreen = false
@@ -834,6 +837,10 @@ final class AppSettings: ObservableObject {
     // MARK: - Save Code
     /// A private static property that returns the URL for the settings file where the app settings are persisted.
     private static var settingsURL: URL {
+        if let override = settingsURLOverride {
+            return override
+        }
+        
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("ConType", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
