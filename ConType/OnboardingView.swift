@@ -9,6 +9,7 @@ import AppKit
 import Combine
 import SwiftUI
 
+/// A class that manages the onboarding view. Handles permission check, initial presentation, flow progression, and completion.
 @MainActor
 final class OnboardingViewModel: ObservableObject {
     let settings: AppSettings
@@ -31,6 +32,8 @@ final class OnboardingViewModel: ObservableObject {
         self.settings = settings
     }
     
+    /// Sets the active step based on how the view was invoked. Usually called when the onboarding view is called.
+    /// - Parameter startAtWelcome: A `Bool` indicating wether the view should explicitly start at the beginning
     func prepareForPresentation(startAtWelcome: Bool) {
         if startAtWelcome {
             step = 0
@@ -46,20 +49,25 @@ final class OnboardingViewModel: ObservableObject {
         refreshAccessibilityStatus(advanceFromPermissionStep: true)
     }
     
+    /// Stops the permission polling
     func stop() {
         permissionPollTimer?.invalidate()
         permissionPollTimer = nil
     }
     
+    /// Increases the value of `step` by 1
     func advanceStep() {
         step += 1
     }
     
+    /// Decreases the value of `step` by 1, ensuring the step doesn't go below 0
     func goBack() {
         guard step > 0 else { return }
         step -= 1
     }
     
+    /// Handles the view's permission button functionality.
+    /// If trusted, advance a step. If the app already requested the permission, restart the app. Else perform permission request.
     func handlePermissionButton() {
         if isAccessibilityTrusted {
             step = 2
@@ -87,15 +95,19 @@ final class OnboardingViewModel: ObservableObject {
         isAwaitingPermissionGrant = true
     }
     
+    /// Handles performing completion when awaiting for the overlay to be called.
     func handleShortcutActivation() {
         guard isAwaitingActivation else { return }
         complete()
     }
     
+    /// Performs callback for handling completion.
     func complete() {
         onComplete?()
     }
     
+    /// Begins the background checking of wether the permission has been granted.
+    /// Calls `refreshAccessibilityStatus()` every 0.8 seconds.
     private func startPermissionPollingIfNeeded() {
         guard permissionPollTimer == nil else { return }
         
@@ -110,6 +122,8 @@ final class OnboardingViewModel: ObservableObject {
         permissionPollTimer = timer
     }
     
+    /// Checks if the user has granted the app the required permission.
+    /// - Parameter advanceFromPermissionStep: A `Bool` indicating wether the function should advance the view after the permission                                                                                         is given.
     private func refreshAccessibilityStatus(advanceFromPermissionStep: Bool) {
         let trusted = InputMonitoringPermission.isAuthorized()
         let wasTrusted = isAccessibilityTrusted
@@ -125,6 +139,7 @@ final class OnboardingViewModel: ObservableObject {
     }
 }
 
+/// A view struct containing the onboarding flow. Handled by a switch-case for each step with a static action row containing the buttons.
 struct OnboardingView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var viewModel: OnboardingViewModel
@@ -153,6 +168,7 @@ struct OnboardingView: View {
         .animation(.easeInOut(duration: 0.5), value: viewModel.step)
     }
     
+    /// Contains the app icon and name and introduction.
     private var welcomeStep: some View {
         VStack(spacing: 16) {
             Spacer(minLength: 0)
@@ -172,6 +188,7 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity)
     }
     
+    /// Contains permission request text and descriptions.
     private var permissionStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Spacer(minLength: 0)
@@ -199,6 +216,7 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     
+    /// Contains a toggle for wether the app should open on system startup.
     private var configStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Spacer(minLength: 0)
@@ -216,6 +234,7 @@ struct OnboardingView: View {
         }
     }
     
+    /// Contains an image showing the app in the menu bar and a description.
     private var infoStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Spacer(minLength: 0)
@@ -237,6 +256,7 @@ struct OnboardingView: View {
         }
     }
     
+    /// Contains the instructions/shortcut for toggling the keyboard and mouse overlay.
     private var readyStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Spacer(minLength: 0)
@@ -276,6 +296,7 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     
+    /// A view containing the buttons suitable for the active step.
     private var actionRow: some View {
         HStack {
             if viewModel.step > 0 {
@@ -324,6 +345,11 @@ struct OnboardingView: View {
         .buttonStyle(.bordered)
     }
     
+    /// Creates a view that contains a shortcut guide.
+    /// - Parameters:
+    ///   - text: The `String` containg the shortcut to display
+    ///   - action: The `String` that contains the name of the shortcut
+    /// - Returns: A `View` containing a VStack with styling
     private func shortcutBadge(_ text: String, to action: String) -> some View {
         VStack (alignment: .leading, spacing: 4) {
             Text(action)
