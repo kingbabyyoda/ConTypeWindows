@@ -432,7 +432,7 @@ struct SettingsView: View {
                     .formStyle(.grouped)
                 }
                 
-                Tab("Input", systemImage: "gamecontroller") {
+                Tab("Controller", systemImage: "gamecontroller") {
                     Form {
                         Section("General") {
                             Toggle(
