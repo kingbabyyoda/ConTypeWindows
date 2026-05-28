@@ -44,6 +44,35 @@ enum ConflictStatus {
     }
 }
 
+/// A view struct containing the controller glyph with a fallback mechanism.
+struct ControllerGlyphBadge: View {
+    let assetName: String
+    let fallbackText: String
+    var size: CGFloat = 20
+    
+    var body: some View {
+        let finalName = assetName.isEmpty ? "questionmark.circle.fill" : assetName
+        let hasAsset = NSImage(named: finalName) != nil
+        
+        ZStack {
+            if hasAsset {
+                Image(finalName)
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .colorMultiply(Color.primary)
+            } else {
+                Image(systemName: finalName)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(max(2, size * 0.1))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel(Text(fallbackText))
+    }
+}
+
 /// ViewModel for the Settings view, responsible for managing all state and logic related to the settings UI, including handling user interactions for recording hotkeys, selecting controller bindings, managing axis input types, and providing feedback on potential input conflicts. It interacts with the `AppSettings` model to persist changes and uses callbacks to communicate with the view for actions that require user input or confirmation.
 @MainActor
 final class SettingsViewModel: ObservableObject {
@@ -1203,35 +1232,6 @@ final class SettingsViewModel: ObservableObject {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
         )
-    }
-    
-    /// A view struct containing the controller glyph with a fallback mechanism.
-    struct ControllerGlyphBadge: View {
-        let assetName: String
-        let fallbackText: String
-        var size: CGFloat = 20
-        
-        var body: some View {
-            let finalName = assetName.isEmpty ? "questionmark.circle.fill" : assetName
-            let hasAsset = NSImage(named: finalName) != nil
-            
-            ZStack {
-                if hasAsset {
-                    Image(finalName)
-                        .resizable()
-                        .renderingMode(.original)
-                        .scaledToFit()
-                        .colorMultiply(Color.primary)
-                } else {
-                    Image(systemName: finalName)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(max(2, size * 0.1))
-                }
-            }
-            .frame(width: size, height: size)
-            .accessibilityLabel(Text(fallbackText))
-        }
     }
     
     /// Generates a SwiftUI view that displays the appropriate combination of controller glyphs for a given controller toggle input, including the guide button and any additional buttons that are currently pressed on the controller. If no buttons are currently pressed and the guide button is not active, it displays a waiting text message instead. This view provides real-time feedback on the current state of the controller inputs during the recording process for controller toggles.

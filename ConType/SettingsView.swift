@@ -282,7 +282,7 @@ struct SettingsView: View {
                         
                         Section("Controller Configuration") {
                             HStack {
-                                SettingsViewModel.ControllerGlyphBadge(
+                                ControllerGlyphBadge(
                                     assetName: "LS",
                                     fallbackText: "LS",
                                     size: 24
@@ -293,7 +293,7 @@ struct SettingsView: View {
                             }
                             
                             HStack {
-                                SettingsViewModel.ControllerGlyphBadge(
+                                ControllerGlyphBadge(
                                     assetName: "RS",
                                     fallbackText: "RS",
                                     size: 24
@@ -304,7 +304,7 @@ struct SettingsView: View {
                             }
                             
                             HStack {
-                                SettingsViewModel.ControllerGlyphBadge(
+                                ControllerGlyphBadge(
                                     assetName: "DPad",
                                     fallbackText: "DPad",
                                     size: 24
@@ -377,7 +377,7 @@ struct SettingsView: View {
                     Form {
                         Section("Controller Configuration") {
                             HStack {
-                                SettingsViewModel.ControllerGlyphBadge(
+                                ControllerGlyphBadge(
                                     assetName: "LS",
                                     fallbackText: "LS",
                                     size: 24
@@ -388,7 +388,7 @@ struct SettingsView: View {
                             }
                             
                             HStack {
-                                SettingsViewModel.ControllerGlyphBadge(
+                                ControllerGlyphBadge(
                                     assetName: "RS",
                                     fallbackText: "RS",
                                     size: 24
@@ -399,7 +399,7 @@ struct SettingsView: View {
                             }
                             
                             HStack {
-                                SettingsViewModel.ControllerGlyphBadge(
+                                ControllerGlyphBadge(
                                     assetName: "DPad",
                                     fallbackText: "DPad",
                                     size: 24
