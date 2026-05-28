@@ -10,9 +10,7 @@ import SwiftUI
 
 struct TutorialView: View {
     @ObservedObject var viewModel: TutorialViewModel
-    private var settings: AppSettings { viewModel.settings }
-    
-    @State var currentPage: Int = 3
+    let settings: AppSettings
     
     var body: some View {
         ZStack {
@@ -23,7 +21,7 @@ struct TutorialView: View {
                 .scaledToFill()
             
             Group {
-                switch currentPage {
+                switch viewModel.currentPage {
                 case 0:
                     VStack {
                         Text("Welcome to ConType!")
@@ -34,7 +32,7 @@ struct TutorialView: View {
                         
                         Button("Continue") {
                             withAnimation(.easeInOut(duration: 0.3)) {
-                                currentPage += 1
+                                viewModel.nextPage()
                             }
                         }
                         .roundGlassProminent()
@@ -56,7 +54,7 @@ struct TutorialView: View {
                         
                         Button("Continue") {
                             withAnimation(.easeInOut(duration: 0.3)) {
-                                currentPage += 1
+                                viewModel.nextPage()
                             }
                         }
                         .roundGlassProminent()
@@ -108,14 +106,6 @@ struct TutorialView: View {
                     }
                     .transition(.opacity)
                     
-                    // Move in the Keyboard
-                    
-                    // Try typing "Hello World!" (Show shift shortcut)
-                    
-                    // Open the mouse (Listen for mouse shortcut)
-                    
-                    // Move the mouse
-                    
                 default:
                     // Press (Guide Button) or (Shortcut) to end tutorial
                     
@@ -137,9 +127,5 @@ struct TutorialView: View {
 }
 
 #Preview {
-    let vm = TutorialViewModel(
-        settings: AppSettings()
-    )
-    
-    TutorialView(viewModel: vm)
+    TutorialView(viewModel: TutorialViewModel(settings: AppSettings()), settings: AppSettings())
 }

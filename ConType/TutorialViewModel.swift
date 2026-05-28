@@ -1,26 +1,37 @@
 
 //
-//  Settingsswift
+//  TutorialViewModel.swift
 //  ConType
 //
-//  Created by Ethan John Lagera on 4/18/26.
+//  Created by Ethan John Lagera on 5/27/26.
 //
 
 import AppKit
 import SwiftUI
 import Combine
 
-/// ViewModel for the Settings view, responsible for managing all state and logic related to the settings UI, including handling user interactions for recording hotkeys, selecting controller bindings, managing axis input types, and providing feedback on potential input conflicts. It interacts with the `AppSettings` model to persist changes and uses callbacks to communicate with the view for actions that require user input or confirmation.
+/// ViewModel for the Tutorial view, responsible for managing tutorial state and responding to controller input events.
 @MainActor
 final class TutorialViewModel: ObservableObject {
     // Dependencies
     let settings: AppSettings
     private var cancellables = Set<AnyCancellable>()
     
+    // Callbacks (injected from controller)
+    private let onTutorialCompleted: (() -> Void)?
+    
+    // Published UI state
+    @Published var currentPage: Int = 0
+    @Published var keyboardShortcutTriggered = false
+    @Published var firstMoveDetected = false
+    @Published var mouseShortcutTriggered = false
+    
     init(
-        settings: AppSettings
+        settings: AppSettings,
+        onTutorialCompleted: (() -> Void)? = nil
     ) {
         self.settings = settings
+        self.onTutorialCompleted = onTutorialCompleted
         
         settings.objectWillChange
             .sink { [weak self] _ in
@@ -29,6 +40,46 @@ final class TutorialViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    // MARK: - Input Event Handlers
+    /// Called when the keyboard overlay activation is triggered.
+    func handleKeyboardOverlayActivated() {
+        guard currentPage == 2 else { return }
+        guard !keyboardShortcutTriggered else { return }
+        keyboardShortcutTriggered = true
+        
+        withAnimation(.easeInOut(duration: 0.3)) {
+            currentPage = 3
+        }
+    }
+    
+    /// Called when the mouse overlay activation is triggered.
+    func handleMouseOverlayActivated() {
+        guard currentPage == 4 else { return }
+        guard !mouseShortcutTriggered else { return }
+        mouseShortcutTriggered = true
+    }
+    
+    /// Called when movement is triggered with a direction and trigger type.
+    /// - Parameters:
+    ///   - direction: The `OverlayMoveDirection` indicating the movement direction.
+    ///   - trigger: The `OverlayMoveTrigger` indicating how the movement was triggered.
+    func handleMove(_ direction: OverlayMoveDirection, trigger: OverlayMoveTrigger) {
+        guard currentPage == 3 else { return }
+        guard !firstMoveDetected else { return }
+        firstMoveDetected = true
+    }
+    
+    /// Advances to the next tutorial page.
+    func nextPage() {
+        currentPage += 1
+    }
+    
+    /// Completes the tutorial and invokes the completion callback.
+    func completeTutorial() {
+        onTutorialCompleted?()
+    }
+    
+    // MARK: - Glyph Helpers
     func genericGuideGlyph(size: CGFloat = 20) -> some View {
         ControllerGlyphBadge(
             assetName: "gamecontroller.circle.fill",
@@ -156,5 +207,6 @@ extension View {
         settings: AppSettings()
     )
     
-    TutorialView(viewModel: vm)
+    TutorialView(viewModel: vm, settings: AppSettings())
 }
+

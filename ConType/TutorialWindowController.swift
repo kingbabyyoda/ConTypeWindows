@@ -1,8 +1,8 @@
 //
-//  OnboardingWindowController.swift
+//  TutorialWindowController.swift
 //  ConType
 //
-//  Created by Ethan John Lagera on 4/14/26.
+//  Created by Ethan John Lagera on 5/27/26.
 //
 
 import AppKit
@@ -14,12 +14,16 @@ final class TutorialWindowController: NSObject, NSWindowDelegate {
     var onClose: (() -> Void)?
     
     private let settings: AppSettings
+    private let onTutorialCompleted: (() -> Void)?
+    private var viewModel: TutorialViewModel?
     private var window: NSWindow?
     
     init(
         settings: AppSettings,
+        onTutorialCompleted: (() -> Void)? = nil
     ) {
         self.settings = settings
+        self.onTutorialCompleted = onTutorialCompleted
     }
     
     /// A computed property that checks if the tutorial window is currently visible by accessing the `isVisible` property of the window.
@@ -44,6 +48,25 @@ final class TutorialWindowController: NSObject, NSWindowDelegate {
         onClose?()
     }
     
+    // MARK: - Tutorial Input Callbacks
+    /// Forwards a keyboard overlay activation event to the tutorial view model.
+    func onKeyboardOverlayActivated() {
+        viewModel?.handleKeyboardOverlayActivated()
+    }
+    
+    /// Forwards a mouse overlay activation event to the tutorial view model.
+    func onMouseOverlayActivated() {
+        viewModel?.handleMouseOverlayActivated()
+    }
+    
+    /// Forwards a movement event with direction and trigger to the tutorial view model.
+    /// - Parameters:
+    ///   - direction: The `OverlayMoveDirection` indicating the movement direction.
+    ///   - trigger: The `OverlayMoveTrigger` indicating how the movement was triggered.
+    func onMove(_ direction: OverlayMoveDirection, trigger: OverlayMoveTrigger) {
+        viewModel?.handleMove(direction, trigger: trigger)
+    }
+    
     /// Creates the tutorial window if it doesn't exist, sets up the hosting controller with the tutorial view and configures the window properties.
     /// - Returns: An `NSWindow` containing the tutorial view.
     private func makeWindowIfNeeded() -> NSWindow {
@@ -55,10 +78,12 @@ final class TutorialWindowController: NSObject, NSWindowDelegate {
         
         let viewModel = TutorialViewModel(
             settings: settings,
+            onTutorialCompleted: onTutorialCompleted
         )
+        self.viewModel = viewModel
         
         let hostingController = NSHostingController(
-            rootView: TutorialView(viewModel: viewModel)
+            rootView: TutorialView(viewModel: viewModel, settings: settings)
         )
         
         let dimension = NSSize(
