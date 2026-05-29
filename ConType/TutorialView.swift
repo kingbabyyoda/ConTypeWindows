@@ -239,11 +239,13 @@ struct TutorialView: View {
                                 
                                 viewModel.pseudoTextFieldView()
                                 
-                                Text("Notice the controller button in some keys like shift? Try pressing those buttons on your controller and see what happens!")
-                                    .foregroundStyle(.white)
-                                    .transition(.opacity)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 12)
+                                if !viewModel.completedTyping {
+                                    Text("Notice the controller button in some keys like shift? Try pressing those buttons on your controller and see what happens!")
+                                        .foregroundStyle(.white)
+                                        .transition(.opacity)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 12)
+                                }
                             }
                             .transition(.opacity.combined(with: .slide))
                             .foregroundStyle(.white)
