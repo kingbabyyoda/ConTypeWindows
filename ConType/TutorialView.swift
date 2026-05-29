@@ -238,6 +238,7 @@ struct TutorialView: View {
                                 }
                                 
                                 viewModel.pseudoTextFieldView()
+                                    .padding(.horizontal, 12)
                                 
                                 if !viewModel.completedTyping {
                                     Text("Notice the controller button in some keys like shift? Try pressing those buttons on your controller and see what happens!")

@@ -66,6 +66,7 @@ final class TutorialViewModel: ObservableObject {
     func pseudoTextFieldView() -> some View {
         HStack(spacing: 1) {
             Text(pseudoTextField.isEmpty ? "Start Typing!" : pseudoTextField)
+                .lineLimit(1)
                 .font(.largeTitle)
                 .foregroundStyle(.white)
                 .opacity(pseudoTextField.isEmpty ? 0.8 : 1)
