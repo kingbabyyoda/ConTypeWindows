@@ -131,6 +131,7 @@ struct TutorialView: View {
                     }
                     .padding(.top)
                     .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.3), value: settings.detectedController)
                     
                 case 3:
                     VStack {
