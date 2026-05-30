@@ -28,18 +28,14 @@ struct BlinkingCaret: View {
 /// ViewModel for the Tutorial view, responsible for managing tutorial state and responding to controller input events.
 @MainActor
 final class TutorialViewModel: ObservableObject {
-    // Dependencies
     let settings: AppSettings
+    let keyboardViewModel: KeyboardOverlayViewModel
     private var cancellables = Set<AnyCancellable>()
     
-    // Callbacks (injected from controller)
-    private let onTutorialCompleted: (() -> Void)?
+    var onComplete: (() -> Void)?
+    var openSettings: (() -> Void)?
     
-    // Keyboard overlay state
-    let keyboardViewModel: KeyboardOverlayViewModel
-    
-    // Published UI state
-    @Published var currentPage: Int = 0
+    @Published private(set) var currentPage: Int = 0
     @Published var keyboardShortcutTriggered = false
     @Published var mouseShortcutTriggered = false
     @Published var firstMoveDetected = false
@@ -49,11 +45,9 @@ final class TutorialViewModel: ObservableObject {
     
     
     init(
-        settings: AppSettings,
-        onTutorialCompleted: (() -> Void)? = nil
+        settings: AppSettings
     ) {
         self.settings = settings
-        self.onTutorialCompleted = onTutorialCompleted
         self.keyboardViewModel = KeyboardOverlayViewModel(settings: settings)
         
         settings.objectWillChange

@@ -12,15 +12,24 @@ import SwiftUI
 @MainActor
 final class TutorialWindowController: NSObject, NSWindowDelegate {
     var onClose: (() -> Void)?
+    var openSettings: (() -> Void)?
     
     private let settings: AppSettings
-    private var viewModel: TutorialViewModel?
+    private var viewModel: TutorialViewModel
     private var window: NSWindow?
     
-    init(
-        settings: AppSettings,
-    ) {
+    init(settings: AppSettings) {
         self.settings = settings
+        self.viewModel = TutorialViewModel(settings: settings)
+        super.init()
+        
+        viewModel.onComplete = { [weak self] in
+            self?.close()
+        }
+        
+        viewModel.openSettings = { [weak self] in
+            self?.openSettings?()
+        }
     }
     
     /// A computed property that checks if the tutorial window is currently visible by accessing the `isVisible` property of the window.
@@ -48,16 +57,16 @@ final class TutorialWindowController: NSObject, NSWindowDelegate {
     // MARK: - Tutorial Input Callbacks
     /// Forwards a keyboard overlay activation event to the tutorial view model.
     func onKeyboardOverlayActivated() {
-        viewModel?.handleKeyboardOverlayActivated()
+        viewModel.handleKeyboardOverlayActivated()
     }
     
     /// Forwards a mouse overlay activation event to the tutorial view model.
     func onMouseOverlayActivated() {
-        viewModel?.handleMouseOverlayActivated()
+        viewModel.handleMouseOverlayActivated()
     }
     
     func dismissOverlayViaGuideButtonIfNeeded() {
-        viewModel?.handleDismissOverlayViaGuideButton()
+        viewModel.handleDismissOverlayViaGuideButton()
     }
     
     /// Forwards a movement event with direction and trigger to the tutorial view model.
@@ -68,35 +77,35 @@ final class TutorialWindowController: NSObject, NSWindowDelegate {
         _ direction: OverlayMoveDirection,
         trigger: OverlayMoveTrigger = .press
     ) {
-        viewModel?.handleMove(direction, trigger: trigger)
+        viewModel.handleMove(direction, trigger: trigger)
     }
     
     func moveMouse(by delta: CGVector) {
-        viewModel?.handleMouseMove(by: delta)
+        viewModel.handleMouseMove(by: delta)
     }
     
     func activateSelectedKey() {
-        viewModel?.activateSelectedKey()
+        viewModel.activateSelectedKey()
     }
     
     func activateBackspaceKey() {
-        viewModel?.activateBackspaceKey()
+        viewModel.activateBackspaceKey()
     }
     
     func activateSpaceKey() {
-        viewModel?.activateSpaceKey()
+        viewModel.activateSpaceKey()
     }
     
     func activateEnterKey() {
-        viewModel?.activateEnterKey()
+        viewModel.activateEnterKey()
     }
     
     func activateShiftShortcut(cyclesToCapsLock: Bool) {
-        viewModel?.activateShiftShortcut(cyclesToCapsLock: cyclesToCapsLock)
+        viewModel.activateShiftShortcut(cyclesToCapsLock: cyclesToCapsLock)
     }
     
     func activateCapsLockShortcut() {
-        viewModel?.activateCapsLockShortcut()
+        viewModel.activateCapsLockShortcut()
     }
     
     /// Creates the tutorial window if it doesn't exist, sets up the hosting controller with the tutorial view and configures the window properties.
@@ -108,9 +117,6 @@ final class TutorialWindowController: NSObject, NSWindowDelegate {
         
         let screen = NSScreen.main ?? window?.screen ?? NSScreen.screens.first
         let frame = screen?.visibleFrame
-        
-        let viewModel = TutorialViewModel(settings: settings)
-        self.viewModel = viewModel
         
         let hostingController = NSHostingController(
             rootView: TutorialView(viewModel: viewModel, settings: settings)

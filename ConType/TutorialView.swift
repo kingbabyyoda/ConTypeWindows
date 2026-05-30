@@ -53,7 +53,7 @@ struct TutorialView: View {
                             .padding(.horizontal, 8)
                         
                         Button("Open Settings") {
-                            // Open Settings
+                            viewModel.openSettings?()
                         }
                         .roundGlassProminent()
                         

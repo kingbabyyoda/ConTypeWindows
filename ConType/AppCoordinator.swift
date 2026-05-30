@@ -329,6 +329,12 @@ final class AppCoordinator: ObservableObject {
             }
         }
         
+        tutorialController.openSettings = { [weak self] in
+            Task { @MainActor in
+                self?.settingsController.show()
+            }
+        }
+        
         hotkeyManager.shortcut = settings.keyboardHotkey
         controllerInputManager.toggleBindings = settings.controllerToggleBindings
         controllerInputManager.actionBindings = settings.controllerActionBindings
