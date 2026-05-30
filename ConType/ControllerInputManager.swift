@@ -630,7 +630,7 @@ final class ControllerInputManager: NSObject {
     
     /// Dismisses the overlay if the guide button is pressed and the user has enabled dismissal via the guide button.
     private func dismissOverlayViaGuideIfNeeded() {
-        guard dismissWithGuideButton, isOverlayVisible else { return }
+        guard dismissWithGuideButton else { return }
         debugLog("Dismissed overlay via guide button")
         onDismissWithGuideButton?()
     }

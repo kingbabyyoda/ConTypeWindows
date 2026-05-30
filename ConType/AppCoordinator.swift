@@ -116,7 +116,6 @@ final class AppCoordinator: ObservableObject {
                 if self.tutorialController.isVisible {
                     self.tutorialController.dismissOverlayViaGuideButtonIfNeeded()
                 } else {
-                    
                     self.dismissOverlayViaGuideButtonIfNeeded()
                 }
             }
