@@ -9,6 +9,7 @@ import AppKit
 import SwiftUI
 import Combine
 
+/// A simple blinking caret view used in the pseudo text field during the keyboard tutorial page.
 struct BlinkingCaret: View {
     @State private var isVisible = true
     
@@ -77,6 +78,9 @@ final class TutorialViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    /// A capsule-shaped text field that displays the string variable `pseudoTextField` and a blinking caret when the string is not empty.
+    /// The text field animates its width based on the content and applies a glass effect.
+    /// - Returns: A view representing the pseudo text field
     func pseudoTextFieldView() -> some View {
         HStack(spacing: 1) {
             Text(pseudoTextField.isEmpty ? "Start Typing!" : pseudoTextField)
@@ -101,7 +105,7 @@ final class TutorialViewModel: ObservableObject {
     }
     
     // MARK: - Input Event Handlers
-    /// Called when the keyboard overlay activation is triggered.
+    /// Handles activation of the keyboard overlay, advancing tutorial pages based on current page and interaction completion state.
     func handleKeyboardOverlayActivated() {
         if currentPage == 3 && !keyboardOverlayVisible {
             keyboardOverlayVisible = true
@@ -110,13 +114,14 @@ final class TutorialViewModel: ObservableObject {
             }
         } else if currentPage == 4 && completedTyping {
             keyboardOverlayVisible = false
+            resetKeyboardOverlay()
             withAnimation(.easeInOut(duration: 0.3)) {
                 currentPage = 5
             }
         }
     }
     
-    /// Called when the mouse overlay activation is triggered.
+    /// Hamdles activation of the mouse overlay, advancing tutorial pages based on current page and interaction completion state.
     func handleMouseOverlayActivated() {
         if currentPage == 5 && !mouseOverlayVisible {
             mouseOverlayVisible = true
@@ -131,6 +136,7 @@ final class TutorialViewModel: ObservableObject {
         }
     }
     
+    /// Handles dismissal of the overlays via guide button, advancing tutorial pages based on current page and interaction completion state.
     func handleDismissOverlayViaGuideButton() {
         guard settings.dismissWithGuideButton else { return }
         if currentPage == 4 && completedTyping {
@@ -161,33 +167,43 @@ final class TutorialViewModel: ObservableObject {
         }
     }
     
+    /// Handles activating the currently selected key in the keyboard overlay, sending the corresponding key press event.
     func activateSelectedKey() {
         let keys = keyboardViewModel.activateSelected()
         onKeyPressed(keys.0, keys.1)
-        debugPrint("Pressing key: \(keys.1), flags: \(keys.1)")
     }
     
+    /// Activates the backspace key, removing the last character from the pseudo text field if it's not empty.
     func activateBackspaceKey() {
         if pseudoTextField.isEmpty { return }
         pseudoTextField.removeLast()
     }
     
+    /// Handles activating the space key, appending a space character to the pseudo text field.
     func activateSpaceKey() {
         pseudoTextField.append(" ")
     }
     
+    /// Handles activating the tab key. Does nothing.
     func activateEnterKey() {
         // Activate enter key
     }
     
+    /// Handles activating the shift shortcut, forwarding the action to the keyboard overlay view model and toggling the shifted state.
+    /// - Parameter cyclesToCapsLock: A boolean indicating whether the shift shortcut should cycle to caps lock after being activated a certain number of times
     func activateShiftShortcut(cyclesToCapsLock: Bool) {
         keyboardViewModel.cycleShiftShortcut(cyclesToCapsLock: cyclesToCapsLock)
     }
     
+    /// Handles activating the caps lock shortcut, forwarding the action to the keyboard overlay view model to toggle caps lock state.
     func activateCapsLockShortcut() {
         keyboardViewModel.toggleCapsLockShortcut()
     }
     
+    /// Handles a key press event from the keyboard overlay, updating the pseudo text field based on the key code and modifier flags.
+    /// - Parameters:
+    ///   - key: The `VirtualKey` that was pressed, containing information about the key code and labels
+    ///   - flags: The `CGEventFlags` representing the modifier keys active during the key press
     func onKeyPressed(_ key: VirtualKey, _ flags: CGEventFlags) {
         guard currentPage == 4 else { return }
         guard keyboardMoved else { return }
@@ -218,10 +234,13 @@ final class TutorialViewModel: ObservableObject {
         keyboardViewModel.setKeyboardLayout(settings.keyboardLayout)
     }
     
+    /// Handles pressing on the mouse overlay. Does nothing.
     func onMouseOverlayPressed() {
         // Do nothing for now
     }
     
+    /// Handles mouse movement by updating the `mousePosition` based on the provided delta, clamping it within the view bounds, and updating interaction state accordingly.
+    /// - Parameter delta: A `CGVector` representing the change in mouse position since the last update
     func handleMouseMove(by delta: CGVector) {
         guard currentPage == 6, let proxy = viewProxy else { return }
         let newX = mousePosition.x + delta.dx
@@ -242,6 +261,8 @@ final class TutorialViewModel: ObservableObject {
         }
     }
     
+    /// Handles mouse click events by updating the `mouseDown` state and checking if the click occurred within the designated button frame, advancing tutorial progress accordingly.
+    /// - Parameter isDown: A boolean indicating whether the mouse button was pressed down or released
     func handleMouseClick(isDown: Bool) {
         guard currentPage == 6 else { return }
         mouseDown = isDown
@@ -258,6 +279,7 @@ final class TutorialViewModel: ObservableObject {
         }
     }
     
+    /// Reclamps the mouse position within the bounds of the view proxy, ensuring the cursor does not go outside the visible area.
     func reclampMouse() {
         guard let proxy = viewProxy else { return }
         let clampedX = min(max(mousePosition.x, 0), proxy.size.width)
@@ -265,6 +287,11 @@ final class TutorialViewModel: ObservableObject {
         mousePosition = CGPoint(x: clampedX, y: clampedY)
     }
     
+    /// Generates a view representing the mouse cursor overlay, displaying a pointer icon at the current mouse position with visibility based on the `mouseOverlayVisible` state.
+    /// - Parameters:
+    ///   - proxy: A `GeometryProxy` representing the dimensions of the view, used for positioning and clamping the mouse cursor within bounds
+    ///   - mousePos: A `CGPoint` representing the current position of the mouse cursor, used to position the cursor icon in the overlay
+    /// - Returns: A view containing the mouse cursor icon, positioned at `mousePos` and with opacity based on `mouseOverlayVisible`
     func mouseCursorLayer(_ proxy: GeometryProxy, mousePos: CGPoint) -> some View {
         return VStack {
             Image(systemName: "pointer.arrow")
@@ -278,20 +305,34 @@ final class TutorialViewModel: ObservableObject {
         }
     }
     
-    /// Advances to the next tutorial page and resets overlay state if leaving page 3.
+    /// Advances to the next tutorial page.
     func nextPage() {
-        if currentPage == 4 {
-            resetKeyboardOverlay()
-        }
         currentPage += 1
     }
     
-    /// Completes the tutorial and invokes the completion callback.
+    /// Invokes the completion callback and resets all states to their initial values.
     func completeTutorial() {
         onComplete?()
+        currentPage = 0
+        keyboardOverlayVisible = false
+        keyboardMoved = false
+        completedTyping = false
+        pseudoTextField = ""
+        animateCaret = false
+        caretOffset = 0
+        mouseOverlayVisible = false
+        mouseMoved = false
+        completedMousing = false
+        mousePosition = CGPoint.zero
+        mouseDown = false
+        viewProxy = nil
+        mouseButtonFrame = .zero
+        mouseButtonFrameDown = false
     }
     
     // MARK: - Glyph Helpers
+    /// Determines which guide buttons to display based on the detected controller and settings, defaulting to showing a menu button if no guide buttons are detected.
+    /// - Returns: An array of `ControllerGuideButton` representing the buttons to be displayed in the guide
     func displayedGuideButtons() -> [ControllerGuideButton] {
         guard let detectedController = settings.detectedController else { return [] }
         if detectedController.guideButtons.isEmpty {
@@ -300,6 +341,9 @@ final class TutorialViewModel: ObservableObject {
         return detectedController.guideButtons
     }
     
+    /// Generates a generic guide button glyph, using a default controller icon and "Guide" text, with customizable size.
+    /// - Parameter size: A `CGFloat` representing the size of the glyph, defaulting to 20
+    /// - Returns: A view representing the generic guide button glyph
     func genericGuideGlyph(size: CGFloat = 20) -> some View {
         ControllerGlyphBadge(
             assetName: "gamecontroller.circle.fill",
@@ -309,6 +353,12 @@ final class TutorialViewModel: ObservableObject {
         )
     }
     
+    /// Generates a view for a given controller guide button, displaying the appropriate glyph based on the current settings and detected controller, with a fallback to text if no glyph is available.
+    /// The glyph is styled with a glass effect and accessibility label.
+    /// - Parameters:
+    ///   - button: A `ControllerGuideButton` representing the specific guide button to generate a glyph for
+    ///   - size: A `CGFloat` representing the size of the glyph, defaulting to 32
+    /// - Returns: A view representing the controller guide button glyph
     @ViewBuilder
     func controllerGuideGlyphs(_ button: ControllerGuideButton, size: CGFloat = 32) -> some View {
         let title = button.displayTitle(for: settings.controllerGlyphStyle)
@@ -337,6 +387,8 @@ final class TutorialViewModel: ObservableObject {
         }
     }
     
+    /// Generates a horizontal stack of guide button glyphs based on the detected controller and settings, displaying a message if no controller is detected.
+    /// - Returns: A view representing the stack of guide button glyphs or a message prompting the user to reconnect their controller
     func guideButtons() -> some View {
         let guideButtons = displayedGuideButtons()
         
@@ -358,11 +410,19 @@ final class TutorialViewModel: ObservableObject {
         }
     }
     
+    /// Quickly generates a view representing the glyph assigned to a specific controller action.
+    /// - Parameter action: The `ControllerActionBinding` representing the specific controller action to generate a glyph for
+    /// - Returns: A view representing the assigned button glyph for the given controller action
     func assignedButtonGlyph(for action: ControllerActionBinding) -> some View {
         let button = settings.controllerActionBindings.button(for: action)
         return buttonGlyph(button)
     }
     
+    /// Generates a view representing the glyph for a given controller button, using the appropriate asset based on the current settings and detected controller, with a fallback to text if no glyph is available.
+    /// - Parameters:
+    ///   - button: A `ControllerAssignableButton` representing the specific controller button to generate a glyph for
+    ///   - size: A `CGFloat` representing the size of the glyph, defaulting to 20
+    /// - Returns: A view representing the controller button glyph
     func buttonGlyph(_ button: ControllerAssignableButton, size: CGFloat = 20) -> some View {
         ControllerGlyphBadge(
             assetName: button.glyphAssetName(for: settings.controllerGlyphStyle),
@@ -372,6 +432,9 @@ final class TutorialViewModel: ObservableObject {
         )
     }
     
+    /// Creates a view representing the shortcut for a given controller toggle binding, displaying the guide button glyph and the assigned button glyph with a "+" separator, along with the name of the assigned button.
+    /// - Parameter mode: The `ControllerToggleBinding` representing the specific toggle action to generate the shortcut view for
+    /// - Returns: A view representing the controller shortcut for the given toggle binding
     func controllerShortcut(for mode: ControllerToggleBinding) -> some View {
         let selectedButton = settings.controllerToggleBindings.binding(for: mode)
         
@@ -387,6 +450,11 @@ final class TutorialViewModel: ObservableObject {
         .frame(minHeight: 44)
     }
     
+    /// Generates a view representing the glyph for a given controller axis input, using the appropriate asset based on the current settings and detected controller, with a fallback to text if no glyph is available.
+    /// - Parameters:
+    ///   - axis: An `AxisInput` representing the specific controller axis to generate a glyph for
+    ///   - size: A `CGFloat` representing the size of the glyph, defaulting to 20
+    /// - Returns: A view representing the controller axis glyph for the given axis input
     private func axisGlyph(_ axis: AxisInput, size: CGFloat = 20) -> some View {
         ControllerGlyphBadge(
             assetName: axis.glyphAssetName,
@@ -396,6 +464,9 @@ final class TutorialViewModel: ObservableObject {
         )
     }
     
+    /// Generates a view representing the axes assigned to a specific controller action, displaying the corresponding glyphs with "or" separators if multiple axes are assigned, or a message prompting the user to configure bindings if no axes are assigned.
+    /// - Parameter action: An `AxisActionType` representing the specific controller action to generate the axis bindings view for
+    /// - Returns: A view representing the assigned axis bindings for the given controller action, or a message prompting the user to configure bindings if none are assigned
     func axisBindings(for action: AxisActionType) -> some View {
         // Collect axes assigned to overlay movement
         var bindingAxes: [AxisInput] = []
@@ -460,6 +531,8 @@ final class TutorialViewModel: ObservableObject {
         )
     }
     
+    /// Generates a view representing the mouse click buttons assigned to the left and right click actions, displaying the corresponding glyphs and labels for each button.
+    /// - Returns: A view representing the mouse click buttons with their assigned glyphs and labels
     func mouseClickButtons() -> some View {
         return HStack(spacing: 8) {
             VStack {
