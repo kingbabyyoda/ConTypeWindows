@@ -307,12 +307,20 @@ final class TutorialViewModel: ObservableObject {
     
     /// Advances to the next tutorial page.
     func nextPage() {
-        currentPage += 1
+        // Prevent button mashing to skip pages
+        if currentPage < 3 {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                currentPage += 1
+            }
+        }
     }
     
-    /// Returns to the previous tutorial page.
+    /// Returns to the previous tutor
+    /// ial page.
     func previousPage() {
-        currentPage = max(currentPage - 1, 0)
+        withAnimation(.easeInOut(duration: 0.3)) {
+            currentPage = max(currentPage - 1, 0)
+        }
     }
     
     /// Invokes the completion callback and resets all states to their initial values.
