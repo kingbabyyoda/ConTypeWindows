@@ -157,7 +157,13 @@ final class TutorialWindowController: NSObject, NSWindowDelegate {
         
         let hostingController = NSHostingController(
             rootView: TutorialView(viewModel: viewModel, settings: settings)
+                .frame(minWidth: 960, minHeight: 540)
         )
+        
+        hostingController.sizingOptions = .minSize
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = true
+        hostingController.view.autoresizingMask = [.width, .height]
+
         
         let dimension = NSSize(
             width: (frame?.width ?? 1920) / 2,
@@ -181,16 +187,7 @@ final class TutorialWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
         
-        // Attach the hosting controller's view directly to the window's contentView
-        // and ensure it resizes with the window. Using `contentViewController` is
-        // fine, but explicitly setting the `contentView` and autoresizing helps
-        // avoid cases where the view isn't laid out or visible depending on
-        // window/styleMask interactions.
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = true
-        hostingController.view.autoresizingMask = [.width, .height]
-        hostingController.view.frame = NSRect(origin: .zero, size: dimension)
         window.contentView = hostingController.view
-        
         window.hasShadow = true
         window.delegate = self
         window.titleVisibility = .hidden
