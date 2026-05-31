@@ -189,25 +189,32 @@ final class TutorialViewModel: ObservableObject {
         onKeyPressed(keys.0, keys.1)
     }
     
-    /// Activates the backspace key, removing the last character from the pseudo text field if it's not empty.
+    /// Activates the backspace key, removing the character directly to the left of the caret.
     func activateBackspaceKey() {
-        if pseudoTextField.isEmpty || pseudoTextFieldReference.isEmpty { return }
-        debugPrint("Offset: \(caretOffset), pseudoTextField: \(pseudoTextField), pseudoTextFieldReference: \(pseudoTextFieldReference)")
-        if caretOffset < 0 {
-            pseudoTextField.remove(at: pseudoTextField.index(pseudoTextField.endIndex, offsetBy: Int(caretOffset) - 1))
-        } else {
-            pseudoTextField.removeLast()
-        }
-        pseudoTextFieldReference.removeLast()
+        if pseudoTextField.isEmpty { return }
+        
+        // Calculate the insertion/deletion index based on caretOffset
+        let deleteIndexInt = pseudoTextField.count + Int(caretOffset) - 1
+        
+        // Ensure we are not trying to delete before the beginning of the string
+        guard deleteIndexInt >= 0 else { return }
+        
+        let targetIndex = pseudoTextField.index(pseudoTextField.startIndex, offsetBy: deleteIndexInt)
+        pseudoTextField.remove(at: targetIndex)
+        
         clampCaretOffset()
+        updateReferenceString()
     }
     
     /// Handles activating the space key, appending a space character to the pseudo text field.
     func activateSpaceKey() {
-        debugPrint("Offset: \(caretOffset), pseudoTextField: \(pseudoTextField), pseudoTextFieldReference: \(pseudoTextFieldReference)")
-        pseudoTextField.insert(contentsOf: " ", at: pseudoTextField.index(pseudoTextField.endIndex, offsetBy: Int(caretOffset)))
-        pseudoTextFieldReference.append(" ")
+        let insertIndexInt = pseudoTextField.count + Int(caretOffset)
+        let targetIndex = pseudoTextField.index(pseudoTextField.startIndex, offsetBy: insertIndexInt)
+        
+        pseudoTextField.insert(contentsOf: " ", at: targetIndex)
+        
         clampCaretOffset()
+        updateReferenceString()
     }
     
     /// Handles activating the tab key. Does nothing.
@@ -231,8 +238,7 @@ final class TutorialViewModel: ObservableObject {
         guard currentPage == 4 else { return }
         if caretOffset > CGFloat(-pseudoTextField.count) {
             caretOffset -= 1
-            pseudoTextFieldReference.removeLast()
-            debugPrint("Caret offset after moving left: \(caretOffset)")
+            updateReferenceString()
         }
     }
     
@@ -241,25 +247,20 @@ final class TutorialViewModel: ObservableObject {
         guard currentPage == 4 else { return }
         if caretOffset < 0 {
             caretOffset += 1
-            
-            /// Special handling for offset 0. Causes `index out of bounds` if using the general logic.
-            if caretOffset < 0 {
-                pseudoTextFieldReference.append(pseudoTextField[pseudoTextField.index(pseudoTextField.endIndex, offsetBy: Int(caretOffset))])
-            } else {
-                pseudoTextFieldReference = pseudoTextField
-            }
-            
-            debugPrint("Caret offset after moving right: \(caretOffset)")
+            updateReferenceString()
         }
     }
     
-    func clampCaretOffset() {
-        caretOffset = min(max(caretOffset, CGFloat(-pseudoTextField.count)), 0)
+    /// Updates the reference string used to visually calculate the caret's X offset.
+    /// It grabs the prefix substring up to the current caret offset.
+    private func updateReferenceString() {
+        let targetLength = pseudoTextField.count + Int(caretOffset)
+        pseudoTextFieldReference = String(pseudoTextField.prefix(targetLength))
     }
     
-    func getCaretOffset() -> CGFloat {
-        let charWidth: CGFloat = 24
-        return CGFloat(caretOffset) * charWidth
+    /// Clamps caret offset to within the bounds of `pseudoTextField`.
+    func clampCaretOffset() {
+        caretOffset = min(max(caretOffset, CGFloat(-pseudoTextField.count)), 0)
     }
     
     /// Handles a key press event from the keyboard overlay, updating the pseudo text field based on the key code and modifier flags.
@@ -272,13 +273,10 @@ final class TutorialViewModel: ObservableObject {
         guard key.keyCode != 0 else { return }
         
         if key.keyCode == 51 { // Backspace
-            if !pseudoTextField.isEmpty {
-                pseudoTextField.removeLast()
-                clampCaretOffset()
-            }
+            activateBackspaceKey()
             return
         } else if key.keyCode == 49 { // Space
-            pseudoTextField.append(" ")
+            activateSpaceKey()
             return
         } else if key.keyCode == 48 || key.keyCode == 36 { // Tab & Return
             return
@@ -289,12 +287,13 @@ final class TutorialViewModel: ObservableObject {
         
         let newChar = isShifted && hasShiftedLabel ? key.shiftedLabel! : key.baseLabel
         
-        /// Insert the new character at the caret position in the pseudo text field.
-        pseudoTextField.insert(contentsOf: newChar, at: pseudoTextField.index(pseudoTextField.endIndex, offsetBy: Int(caretOffset)))
-        
-        pseudoTextFieldReference.append(newChar)
+        /// Insert the new character at the exact caret position.
+        let insertIndexInt = pseudoTextField.count + Int(caretOffset)
+        let targetIndex = pseudoTextField.index(pseudoTextField.startIndex, offsetBy: insertIndexInt)
+        pseudoTextField.insert(contentsOf: newChar, at: targetIndex)
         
         clampCaretOffset()
+        updateReferenceString()
     }
     
     /// Resets the keyboard overlay view model state (selection, modifiers).
@@ -334,8 +333,6 @@ final class TutorialViewModel: ObservableObject {
     func handleMouseClick(isDown: Bool) {
         guard currentPage == 6 else { return }
         mouseDown = isDown
-        
-        debugPrint("Mouse click \(isDown ? "down" : "up") at position: \(mousePosition), button frame: \(mouseButtonFrame)")
         
         if isDown && mouseButtonFrame.contains(mousePosition) {
             mouseButtonFrameDown = true
