@@ -83,7 +83,7 @@ final class AppCoordinator: ObservableObject {
         
         hotkeyManager.onToggle = { [weak self] in
             Task { @MainActor in
-                guard let self, self.tutorialController.isVisible else { return }
+                guard let self, !self.tutorialController.isVisible else { return }
                 self.toggleOverlay(source: .keyboardShortcut)
             }
         }

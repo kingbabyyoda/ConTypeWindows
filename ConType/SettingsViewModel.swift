@@ -322,9 +322,11 @@ final class SettingsViewModel: ObservableObject {
     
     /// Ends the keyboard hotkey recording process by removing the local event monitors and resetting the relevant state properties. If the recording was cancelled (e.g., by pressing the Escape key), it ensures that any temporary state is cleared without updating the settings.
     func endKeyboardHotkeyRecording() {
-        isRecordingKeyboardHotkey = false
-        keyboardPreviewShortcut = nil
-        keyboardPressedModifiers = []
+        Task { @MainActor in
+            isRecordingKeyboardHotkey = false
+            keyboardPreviewShortcut = nil
+            keyboardPressedModifiers = []
+        }
         
         if let keyboardKeyDownMonitor {
             NSEvent.removeMonitor(keyboardKeyDownMonitor)
