@@ -85,6 +85,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             rootView: OnboardingView(settings: settings, viewModel: viewModel)
         )
         
+        hostingController.sizingOptions = [.minSize, .maxSize]
+        
         let origin = NSPoint(
             x: (frame?.midX ?? 960) - (400 / 2),
             y: (frame?.midY ?? 540) - (480 / 2)
@@ -101,7 +103,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         
         debugPrint("Widow Origin: \(window.frame.origin), Window Size: \(window.frame.size)")
         
-        window.contentViewController = hostingController
+        window.contentView = hostingController.view
         window.title = "Welcome to ConType"
         window.delegate = self
         window.isReleasedWhenClosed = false
