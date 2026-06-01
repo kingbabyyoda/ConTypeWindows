@@ -694,23 +694,24 @@ final class ControllerInputManager: NSObject {
         
         /// Notify observers of stick changes
         switch source {
-        case .leftStick:
-            onLeftStickChanged?(raw)
-        case .rightStick:
-            onRightStickChanged?(raw)
-        case .pad:
-            onPadChanged?(raw)
+        case .leftStick: onLeftStickChanged?(raw)
+        case .rightStick: onRightStickChanged?(raw)
+        case .pad: onPadChanged?(raw)
         }
         
         /// Get per-source state
         guard var state = analogStates[source] else { return }
+        
+        defer {
+            analogStates[source] = state
+        }
         
         guard let activeInputType = resolvedAxisActionType(from: inputTypes) else {
             resetAnalogStateForContextChange()
             return
         }
         
-        /// If input type changed since last update, clear any existing state that may not apply to the new type (e.g., held directions from previous input type).
+        /// If input type changed since last update, clear any existing state
         if activeInputType != state.lastInputType {
             clearAnalogState(for: source)
             state.lastInputType = activeInputType
@@ -764,13 +765,13 @@ final class ControllerInputManager: NSObject {
                 }
                 stopMoveRepeat(clearDirection: true, for: activeInputType)
                 state.filteredStick = CGVector(dx: 0, dy: 0)
-                analogStates[source] = state
                 return
             }
             
             let newDir = discreteDirection(for: state.filteredStick, mode: keyboardMovementStyle)
             let now = Date()
             let lastChange = lastDirectionChangeDates[source] ?? Date.distantPast
+            
             if newDir != state.lastDirection {
                 if now.timeIntervalSince(lastChange) >= directionDebounceInterval {
                     /// Release previous, press new.
@@ -784,8 +785,6 @@ final class ControllerInputManager: NSObject {
                 }
             }
         }
-        
-        analogStates[source] = state
     }
     
     /// Maps a continuous stick input vector to a discrete direction based on the specified movement mode, which determines the angular ranges for each direction.
@@ -1070,7 +1069,7 @@ final class ControllerInputManager: NSObject {
                 guard activeMoveDirection == direction else { return }
                 stopMoveRepeat(clearDirection: true, for: mode)
                 if let fallback = heldDirectionOrder.last {
-                    beginHeldMovement(in: fallback)
+                    beginHeldMovement(in: fallback, for: mode)
                 }
             } else {
                 directionPressCounts[direction] = currentCount - 1
@@ -1084,7 +1083,7 @@ final class ControllerInputManager: NSObject {
                 
                 guard activeArrowMoveDirection == direction else { return }
                 stopMoveRepeat(clearDirection: true, for: mode)
-                if let fallback = heldDirectionOrder.last {
+                if let fallback = heldArrowDirectionOrder.last {
                     beginHeldMovement(in: fallback, for: mode)
                 }
             } else {
