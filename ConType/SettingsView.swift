@@ -32,6 +32,8 @@ struct SettingsView: View {
         .limited
     
     var body: some View {
+        var schemeChanged = viewModel.currentColorScheme != settings.preferredColorScheme
+        
         NavigationStack {
             TabView {
                 Tab("General", systemImage: "gearshape") {
@@ -106,17 +108,45 @@ struct SettingsView: View {
                                 )
                             )
                             
-                            Picker(
-                                "App Theme",
-                                selection: Binding(
-                                    get: { viewModel.settings.preferredColorScheme },
-                                    set: { viewModel.settings.preferredColorScheme = $0 }
+                            VStack {
+                                Picker(
+                                    "App Theme",
+                                    selection: Binding(
+                                        get: { viewModel.settings.preferredColorScheme },
+                                        set: { viewModel.settings.preferredColorScheme = $0 }
+                                    )
+                                ) {
+                                    ForEach(PreferredColorScheme.allCases) { theme in
+                                        Text(theme.title).tag(theme)
+                                    }
+                                }
+                                .padding(schemeChanged ? 6 : 0)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(.yellow, lineWidth: schemeChanged ? 1.5 : 0)
+                                        .animation(.easeInOut, value: schemeChanged)
                                 )
-                            ) {
-                                ForEach(PreferredColorScheme.allCases) { theme in
-                                    Text(theme.title).tag(theme)
+                                
+                                if schemeChanged {
+                                    HStack {
+                                        Text("For theme changes to fully take effect, please restart the app.")
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                            .transition(.opacity)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        Spacer()
+                                        Button(action: {
+                                            AppCoordinator.defaultRestartApplication()
+                                        }, label: {
+                                            Text("Restart App")
+                                                .font(.footnote)
+                                                .foregroundStyle(.secondary)
+                                        })
+                                        .buttonStyle(.glass)
+                                    }
                                 }
                             }
+                            .animation(.easeInOut, value: schemeChanged)
                         }
                         
                         Section("Overlay") {
@@ -500,6 +530,9 @@ struct SettingsView: View {
                     "This will reset all your settings (except \"Open app on startup\") to their default values. This action cannot be undone."
                 )
             }
+        }
+        .onAppear {
+            viewModel.currentColorScheme = settings.preferredColorScheme
         }
     }
 }

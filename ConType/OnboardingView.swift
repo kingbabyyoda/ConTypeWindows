@@ -16,7 +16,6 @@ final class OnboardingViewModel: ObservableObject {
     let settings: AppSettings
     private let isPermissionAuthorized: @MainActor () -> Bool
     private let requestPermissionAuthorization: @MainActor () -> Bool
-    private let restartApplication: @MainActor () -> Void
     
     @Published private(set) var step = 0
     @Published private(set) var isAccessibilityTrusted = false
@@ -36,13 +35,11 @@ final class OnboardingViewModel: ObservableObject {
     init(
         settings: AppSettings,
         isPermissionAuthorized: @escaping @MainActor () -> Bool = InputMonitoringPermission.isAuthorized,
-        requestPermissionAuthorization: @escaping @MainActor () -> Bool = InputMonitoringPermission.requestAuthorization,
-        restartApplication: (@MainActor () -> Void)? = nil
+        requestPermissionAuthorization: @escaping @MainActor () -> Bool = InputMonitoringPermission.requestAuthorization
     ) {
         self.settings = settings
         self.isPermissionAuthorized = isPermissionAuthorized
         self.requestPermissionAuthorization = requestPermissionAuthorization
-        self.restartApplication = restartApplication ?? Self.defaultRestartApplication
         self.isAccessibilityTrusted = isPermissionAuthorized()
     }
     
@@ -92,7 +89,7 @@ final class OnboardingViewModel: ObservableObject {
             // From HoldToTalk Repository, by @jxucoder
             // Restart app
             settings.restartedFromPermissionScreen = true
-            restartApplication()
+            AppCoordinator.defaultRestartApplication()
             return
         }
         
@@ -143,18 +140,6 @@ final class OnboardingViewModel: ObservableObject {
         
         if advanceFromPermissionStep, !wasTrusted, trusted, step == 1 {
             step = 2
-        }
-    }
-    
-    @MainActor
-    private static func defaultRestartApplication() {
-        let url = Bundle.main.bundleURL
-        let config = NSWorkspace.OpenConfiguration()
-        config.createsNewApplicationInstance = true
-        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in
-            DispatchQueue.main.async {
-                NSApp.terminate(nil)
-            }
         }
     }
 }

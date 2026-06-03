@@ -118,6 +118,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var scrollSpeed: CGFloat = 600
     @Published var invertScrollX: Bool = false
     @Published var invertScrollY: Bool = false
+    @Published var currentColorScheme: PreferredColorScheme?
     
     // Event monitors (not @Published)
     private var keyboardKeyDownMonitor: Any?

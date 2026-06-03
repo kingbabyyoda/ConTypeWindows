@@ -751,4 +751,17 @@ final class AppCoordinator: ObservableObject {
     private func setRegularMode() {
         NSApp.setActivationPolicy(.regular)
     }
+    
+    @MainActor
+    static func defaultRestartApplication() {
+        let url = Bundle.main.bundleURL
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in
+            DispatchQueue.main.async {
+                NSApp.terminate(nil)
+            }
+        }
+    }
+
 }
