@@ -48,9 +48,9 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     
     /// Show the onboarding view, prepare the window, initialize with the view model and make it appear front and center.
     /// - Parameter startAtWelcome: Wether to explicitly start the onboarding view at the beginning.
-    func show(startAtWelcome: Bool) {
+    func show(startAtWelcome: Bool, onlyShowPermission: Bool = false) {
         let window = makeWindowIfNeeded()
-        viewModel.prepareForPresentation(startAtWelcome: startAtWelcome)
+        viewModel.prepareForPresentation(startAtWelcome: startAtWelcome, onlyShowPermission: onlyShowPermission)
         window.makeKeyAndOrderFront(nil)
     }
     

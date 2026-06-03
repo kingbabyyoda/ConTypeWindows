@@ -654,11 +654,11 @@ final class AppCoordinator: ObservableObject {
         let shouldShowAfterRestart = settings.restartedFromPermissionScreen
         
         guard isFirstLaunch || shouldShowForMissingPermission || shouldShowAfterRestart else { return }
-        presentOnboarding(startAtWelcome: isFirstLaunch)
+        presentOnboarding(startAtWelcome: isFirstLaunch, onlyShowPermission: shouldShowForMissingPermission)
     }
     
     /// Presents the onboarding flow, with the option to start at the welcome screen or a later step based on the context of why the onboarding is being shown.
-    private func presentOnboarding(startAtWelcome: Bool) {
+    private func presentOnboarding(startAtWelcome: Bool, onlyShowPermission: Bool = false) {
         guard !onboardingController.isVisible else {
             setRegularMode()
             NSApp.activate(ignoringOtherApps: true)
@@ -666,7 +666,7 @@ final class AppCoordinator: ObservableObject {
         }
         
         setRegularMode()
-        onboardingController.show(startAtWelcome: startAtWelcome)
+        onboardingController.show(startAtWelcome: startAtWelcome, onlyShowPermission: onlyShowPermission)
         NSApp.activate(ignoringOtherApps: true)
     }
     

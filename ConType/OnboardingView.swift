@@ -20,6 +20,7 @@ final class OnboardingViewModel: ObservableObject {
     @Published private(set) var step = 0
     @Published private(set) var isAccessibilityTrusted = false
     @Published var isAwaitingPermissionGrant: Bool = false
+    @Published var onlyForPermission: Bool = false
     
     var onComplete: (() -> Void)?
     var openSettings: (() -> Void)?
@@ -45,7 +46,7 @@ final class OnboardingViewModel: ObservableObject {
     
     /// Sets the active step based on how the view was invoked. Usually called when the onboarding view is called.
     /// - Parameter startAtWelcome: A `Bool` indicating wether the view should explicitly start at the beginning
-    func prepareForPresentation(startAtWelcome: Bool) {
+    func prepareForPresentation(startAtWelcome: Bool, onlyShowPermission: Bool) {
         if startAtWelcome {
             step = 0
         } else if settings.restartedFromPermissionScreen {
@@ -58,6 +59,7 @@ final class OnboardingViewModel: ObservableObject {
         }
         
         refreshAccessibilityStatus(advanceFromPermissionStep: true)
+        onlyForPermission = startAtWelcome ? false : onlyShowPermission
     }
     
     /// Stops the permission polling
@@ -88,7 +90,7 @@ final class OnboardingViewModel: ObservableObject {
         if isAwaitingPermissionGrant {
             // From HoldToTalk Repository, by @jxucoder
             // Restart app
-            settings.restartedFromPermissionScreen = true
+            settings.restartedFromPermissionScreen = !onlyForPermission
             AppCoordinator.defaultRestartApplication()
             return
         }
@@ -96,7 +98,10 @@ final class OnboardingViewModel: ObservableObject {
         _ = requestPermissionAuthorization()
         startPermissionPollingIfNeeded()
         refreshAccessibilityStatus(advanceFromPermissionStep: true)
-        isAwaitingPermissionGrant = true
+        
+        withAnimation(.easeInOut(duration: 0.5)) {
+            isAwaitingPermissionGrant = true
+        }
     }
     
     /// Handles performing completion when awaiting for the overlay to be called.
@@ -128,7 +133,7 @@ final class OnboardingViewModel: ObservableObject {
     }
     
     /// Checks if the user has granted the app the required permission.
-    /// - Parameter advanceFromPermissionStep: A `Bool` indicating wether the function should advance the view after the permission                                                                                         is given.
+    /// - Parameter advanceFromPermissionStep: A `Bool` indicating wether the function should advance the view after the permission is given.
     private func refreshAccessibilityStatus(advanceFromPermissionStep: Bool) {
         let trusted = isPermissionAuthorized()
         let wasTrusted = isAccessibilityTrusted
@@ -201,18 +206,26 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 14) {
             Spacer(minLength: 0)
             
-            Text("Enable Accessibility Permissions")
-                .font(.largeTitle.weight(.semibold))
-            
-            Text("This permission is needed to simulate key presses")
-                .foregroundStyle(.secondary)
+            if viewModel.onlyForPermission {
+                Text("ConType Lost Accessibility Permissions")
+                    .font(.largeTitle.weight(.semibold))
+                
+                Text("This permission is needed to simulate key presses. Re-enable them by pressing the button below.")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Enable Accessibility Permissions")
+                    .font(.largeTitle.weight(.semibold))
+                
+                Text("This permission is needed to simulate key presses")
+                    .foregroundStyle(.secondary)
+            }
             
             if viewModel.isAccessibilityTrusted {
                 Label("Accessibility permission detected", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.subheadline.weight(.semibold))
                     .padding(.top, 6)
-            } else {
+            } else if viewModel.isAwaitingPermissionGrant {
                 Text("If you already enabled the permission and can't advance to the next step, try restarting the app below.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -359,12 +372,12 @@ struct OnboardingView: View {
     /// A view containing the buttons suitable for the active step.
     private var actionRow: some View {
         HStack {
-            if viewModel.step > 0 {
+            if viewModel.step > 0 && !viewModel.onlyForPermission {
                 backButton
             }
             
 #if DEBUG
-            if viewModel.step < 4 {
+            if viewModel.step < 4  && !viewModel.onlyForPermission {
                 Button("Skip") {
                     viewModel.advanceStep()
                 }
