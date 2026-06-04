@@ -1,8 +1,8 @@
-# ConType
+# <a href="https://contype.app/">ConType</a>
 <div align="center">
   <img width="90%" alt="ConType Banner"  src="https://github.com/user-attachments/assets/c16b6637-9e85-476e-add8-f46ea9e66655" />
   <h3 align="center">Make your controller control</h3>
-  <a href="https://raspi.snowy-dab.ts.net/">Visit the website!</a>
+  <a href="https://contype.app/">Visit ConType.app!</a>
 <!--  <a href="https://testflight.apple.com/join/cesGDw2f">Available on TestFlight</a> --> 
 </div>
 
@@ -30,8 +30,8 @@ AI was used to generate the base code and initial interface of the app. Addition
   
 **Menu Bar**
 <br>ConType lives in your Menu Bar, you can access your settings and open the keyboard overlay from here.
-<img width="180" height="128" alt="Menu Bar" src="https://github.com/user-attachments/assets/9646c367-f0a3-4654-af8d-e74593d7878a" />
 
+<img width="180" height="128" alt="Menu Bar" src="https://github.com/user-attachments/assets/9646c367-f0a3-4654-af8d-e74593d7878a" />
 
 **The Overlay**
 <br>The star of the show, the virtual keyboard. Bringing up the overlay allows you to type into the active text field and can also allow you to control your mouse with your controller.
@@ -39,7 +39,7 @@ AI was used to generate the base code and initial interface of the app. Addition
 
 **Settings**
 <br>ConType is easily configurable via the settings panel. Configure shortcuts, joystick deadzone, and more here.
-<img width="80%" alt="Settings" src="https://github.com/user-attachments/assets/e80f7db8-f0a7-4fc8-9a65-92670a4d1641" />
+<img width="80%" alt="Settings" src="https://github.com/user-attachments/assets/a88a6f84-389b-48f1-bcc7-6066ec08afc0" />
 </p>
 
 ## Credits
