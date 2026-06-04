@@ -38,7 +38,7 @@ final class TutorialViewModel: ObservableObject {
     var openSettings: (() -> Void)?
     var updateCoordinatorVisibility: (() -> Void)?
     
-    @Published private(set) var currentPage: Int = 3
+    @Published private(set) var currentPage: Int = 0
     @Published var viewProxy: GeometryProxy?
     
     // State for keyboard interaction
