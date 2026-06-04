@@ -240,6 +240,7 @@ struct TutorialView: View {
                                                 }
                                             }
                                             .font(.headline)
+                                            .foregroundStyle(.white)
                                             .padding(.horizontal, 8)
                                             
                                             viewModel.guideButtons()
@@ -253,6 +254,7 @@ struct TutorialView: View {
                                         } else {
                                             Text("To proceeed, dismiss the keyboard by pressing the following shortcut buttons again.")
                                                 .font(.headline)
+                                                .foregroundStyle(.white)
                                                 .padding(.horizontal, 8)
                                             
                                             viewModel.axisBindings(for: .overlayMovement)
@@ -401,6 +403,7 @@ struct TutorialView: View {
                                                 }
                                             }
                                             .font(.headline)
+                                            .foregroundStyle(.white)
                                             .padding(.horizontal, 8)
                                             
                                             viewModel.guideButtons()
@@ -414,6 +417,7 @@ struct TutorialView: View {
                                         } else {
                                             Text("To proceeed, dismiss the mouse overlay by pressing the following shortcut buttons again.")
                                                 .font(.headline)
+                                                .foregroundStyle(.white)
                                                 .padding(.horizontal, 8)
                                             
                                             viewModel.axisBindings(for: .mouseMovement)
